@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import bcrypt from 'bcryptjs'
-import { db } from '../../db'
+import { db } from './db.server'
 import {
   users,
   people,
@@ -17,24 +17,75 @@ import {
 } from '../../db/schema'
 import { computePermitDates, randomCode, generateSaleNumber } from '@/lib/permit'
 import { addDaysISO, todayISO } from '@/lib/format'
+import { eq } from 'drizzle-orm'
 
 // DEMO DATA — nombres y DNI ficticios, solo para pruebas del sistema.
 export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () => {
-  const [existingUser] = await db.select().from(users).limit(1)
-  if (existingUser) {
+  // IMPORTANTE:
+  // No usamos la tabla users para determinar si el seed ya fue cargado,
+  // porque el usuario administrador se conserva al reiniciar el entorno.
+  //
+  // Consideramos que la demo ya existe si hay personas o planes cargados.
+  const [existingPerson] = await db.select().from(people).limit(1)
+  const [existingPlan] = await db.select().from(plans).limit(1)
+
+  if (existingPerson || existingPlan) {
     return { alreadySeeded: true }
   }
 
   const passwordHash = await bcrypt.hash('estudiantes2026', 10)
-  const [admin] = await db
-    .insert(users)
-    .values([
-      { username: 'admin', passwordHash, fullName: 'Administrador General', role: 'admin' },
-      { username: 'encargado', passwordHash, fullName: 'Encargado de Pileta (Demo)', role: 'encargado' },
-      { username: 'ingreso', passwordHash, fullName: 'Control de Ingreso (Demo)', role: 'control_ingreso' },
-      { username: 'consulta', passwordHash, fullName: 'Usuario de Consulta (Demo)', role: 'consulta' },
-    ])
-    .returning()
+
+  // Crear usuarios demo solamente si todavía no existen.
+  let [admin] = await db
+    .select()
+    .from(users)
+    .where(eq(users.username, 'admin'))
+
+  if (!admin) {
+    ;[admin] = await db
+      .insert(users)
+      .values({
+        username: 'admin',
+        passwordHash,
+        fullName: 'Administrador General',
+        role: 'admin',
+      })
+      .returning()
+  }
+
+  const demoUsers = [
+    {
+      username: 'encargado',
+      fullName: 'Encargado de Pileta (Demo)',
+      role: 'encargado' as const,
+    },
+    {
+      username: 'ingreso',
+      fullName: 'Control de Ingreso (Demo)',
+      role: 'control_ingreso' as const,
+    },
+    {
+      username: 'consulta',
+      fullName: 'Usuario de Consulta (Demo)',
+      role: 'consulta' as const,
+    },
+  ]
+
+  for (const demoUser of demoUsers) {
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, demoUser.username))
+
+    if (!existing) {
+      await db.insert(users).values({
+        username: demoUser.username,
+        passwordHash,
+        fullName: demoUser.fullName,
+        role: demoUser.role,
+      })
+    }
+  }
 
   const seasonStart = `${new Date().getFullYear()}-12-01`
   const seasonEnd = `${new Date().getFullYear() + 1}-02-28`
@@ -42,10 +93,34 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
   const [diario, semanal, quincenal, mensual, temporada] = await db
     .insert(plans)
     .values([
-      { name: 'Pase diario', description: 'Acceso por un día', durationValue: 1, durationUnit: 'dia', sortOrder: 1 },
-      { name: 'Pase semanal', description: 'Acceso por 7 días', durationValue: 7, durationUnit: 'dia', sortOrder: 2 },
-      { name: 'Pase quincenal', description: 'Acceso por 15 días', durationValue: 15, durationUnit: 'dia', sortOrder: 3 },
-      { name: 'Pase mensual', description: 'Acceso por 30 días', durationValue: 30, durationUnit: 'dia', sortOrder: 4 },
+      {
+        name: 'Pase diario',
+        description: 'Acceso por un día',
+        durationValue: 1,
+        durationUnit: 'dia',
+        sortOrder: 1,
+      },
+      {
+        name: 'Pase semanal',
+        description: 'Acceso por 7 días',
+        durationValue: 7,
+        durationUnit: 'dia',
+        sortOrder: 2,
+      },
+      {
+        name: 'Pase quincenal',
+        description: 'Acceso por 15 días',
+        durationValue: 15,
+        durationUnit: 'dia',
+        sortOrder: 3,
+      },
+      {
+        name: 'Pase mensual',
+        description: 'Acceso por 30 días',
+        durationValue: 30,
+        durationUnit: 'dia',
+        sortOrder: 4,
+      },
       {
         name: 'Pase de temporada',
         description: 'Acceso durante toda la temporada de verano',
@@ -64,7 +139,8 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
       {
         name: 'Empresa XYZ S.A.',
         type: 'empresa',
-        description: 'Convenio con Empresa XYZ para empleados y grupo familiar.',
+        description:
+          'Convenio con Empresa XYZ para empleados y grupo familiar.',
         startDate: seasonStart,
         endDate: seasonEnd,
         benefit: 'Tarifa equivalente a socio',
@@ -72,7 +148,8 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
       {
         name: 'Sindicato de Comercio',
         type: 'sindicato',
-        description: 'Convenio con el Sindicato de Comercio de Mercedes.',
+        description:
+          'Convenio con el Sindicato de Comercio de Mercedes.',
         startDate: seasonStart,
         endDate: seasonEnd,
         benefit: 'Tarifa preferencial',
@@ -80,7 +157,8 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
       {
         name: 'Municipalidad de Mercedes',
         type: 'institucion',
-        description: 'Convenio con la Municipalidad de Mercedes.',
+        description:
+          'Convenio con la Municipalidad de Mercedes.',
         startDate: seasonStart,
         endDate: seasonEnd,
         benefit: 'Tarifa equivalente a socio',
@@ -92,15 +170,19 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
     { planId: diario.id, conditionType: 'socio', amount: 8000 },
     { planId: diario.id, conditionType: 'no_socio', amount: 12000 },
     { planId: diario.id, conditionType: 'convenio', amount: 8000 },
+
     { planId: semanal.id, conditionType: 'socio', amount: 35000 },
     { planId: semanal.id, conditionType: 'no_socio', amount: 55000 },
     { planId: semanal.id, conditionType: 'convenio', amount: 35000 },
+
     { planId: quincenal.id, conditionType: 'socio', amount: 60000 },
     { planId: quincenal.id, conditionType: 'no_socio', amount: 90000 },
     { planId: quincenal.id, conditionType: 'convenio', amount: 60000 },
+
     { planId: mensual.id, conditionType: 'socio', amount: 30000 },
     { planId: mensual.id, conditionType: 'no_socio', amount: 50000 },
     { planId: mensual.id, conditionType: 'convenio', amount: 30000 },
+
     { planId: temporada.id, conditionType: 'socio', amount: 120000 },
     { planId: temporada.id, conditionType: 'no_socio', amount: 190000 },
     { planId: temporada.id, conditionType: 'convenio', amount: 120000 },
@@ -116,16 +198,34 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
     { num: '00107', dni: '30100007', first: 'Diego', last: 'Sánchez' },
     { num: '00108', dni: '30100008', first: 'Sofía', last: 'Romero' },
     { num: '00109', dni: '30100009', first: 'Martín', last: 'Torres' },
-    { num: '00110', dni: '30100010', first: 'Valentina', last: 'Díaz', status: 'inactivo' as const },
+    {
+      num: '00110',
+      dni: '30100010',
+      first: 'Valentina',
+      last: 'Díaz',
+      status: 'inactivo' as const,
+    },
   ]
 
   const memberPeople = []
+
   for (const m of demoMembers) {
     const [person] = await db
       .insert(people)
-      .values({ dni: m.dni, firstName: m.first, lastName: m.last, phone: '2352400000' })
+      .values({
+        dni: m.dni,
+        firstName: m.first,
+        lastName: m.last,
+        phone: '2352400000',
+      })
       .returning()
-    await db.insert(members).values({ personId: person.id, memberNumber: m.num, memberStatus: m.status ?? 'activo' })
+
+    await db.insert(members).values({
+      personId: person.id,
+      memberNumber: m.num,
+      memberStatus: m.status ?? 'activo',
+    })
+
     memberPeople.push(person)
   }
 
@@ -136,30 +236,89 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
     { dni: '35200004', first: 'Julieta', last: 'Herrera' },
     { dni: '35200005', first: 'Nicolás', last: 'Vega' },
   ]
+
   const nonMemberPeople = []
+
   for (const p of demoNonMembers) {
-    const [person] = await db.insert(people).values({ dni: p.dni, firstName: p.first, lastName: p.last }).returning()
+    const [person] = await db
+      .insert(people)
+      .values({
+        dni: p.dni,
+        firstName: p.first,
+        lastName: p.last,
+      })
+      .returning()
+
     nonMemberPeople.push(person)
   }
 
   const demoBeneficiaries = [
-    { convention: convenioXYZ, dni: '36300001', first: 'Emilia', last: 'Castro', code: 'XYZ-001' },
-    { convention: convenioXYZ, dni: '36300002', first: 'Tomás', last: 'Silva', code: 'XYZ-002' },
-    { convention: convenioComercio, dni: '36300003', first: 'Agustina', last: 'Ríos', code: 'SC-101' },
-    { convention: convenioComercio, dni: '36300004', first: 'Bruno', last: 'Suárez', code: 'SC-102' },
-    { convention: convenioMunicipal, dni: '36300005', first: 'Florencia', last: 'Ortiz', code: 'MUN-500' },
+    {
+      convention: convenioXYZ,
+      dni: '36300001',
+      first: 'Emilia',
+      last: 'Castro',
+      code: 'XYZ-001',
+    },
+    {
+      convention: convenioXYZ,
+      dni: '36300002',
+      first: 'Tomás',
+      last: 'Silva',
+      code: 'XYZ-002',
+    },
+    {
+      convention: convenioComercio,
+      dni: '36300003',
+      first: 'Agustina',
+      last: 'Ríos',
+      code: 'SC-101',
+    },
+    {
+      convention: convenioComercio,
+      dni: '36300004',
+      first: 'Bruno',
+      last: 'Suárez',
+      code: 'SC-102',
+    },
+    {
+      convention: convenioMunicipal,
+      dni: '36300005',
+      first: 'Florencia',
+      last: 'Ortiz',
+      code: 'MUN-500',
+    },
   ]
+
   const beneficiaryPeople = []
+
   for (const b of demoBeneficiaries) {
-    const [person] = await db.insert(people).values({ dni: b.dni, firstName: b.first, lastName: b.last }).returning()
+    const [person] = await db
+      .insert(people)
+      .values({
+        dni: b.dni,
+        firstName: b.first,
+        lastName: b.last,
+      })
+      .returning()
+
     await db
       .insert(conventionBeneficiaries)
-      .values({ conventionId: b.convention.id, personId: person.id, employeeCode: b.code })
-    beneficiaryPeople.push({ person, conventionId: b.convention.id })
+      .values({
+        conventionId: b.convention.id,
+        personId: person.id,
+        employeeCode: b.code,
+      })
+
+    beneficiaryPeople.push({
+      person,
+      conventionId: b.convention.id,
+    })
   }
 
   // Demo sales, permits and entries
   const today = todayISO()
+
   const demoSalesSpec: Array<{
     person: (typeof memberPeople)[number]
     conditionType: 'socio' | 'no_socio' | 'convenio'
@@ -167,18 +326,61 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
     plan: typeof mensual
     daysAgo: number
   }> = [
-    { person: memberPeople[0], conditionType: 'socio', conventionId: null, plan: mensual, daysAgo: 3 },
-    { person: memberPeople[1], conditionType: 'socio', conventionId: null, plan: diario, daysAgo: 0 },
-    { person: nonMemberPeople[0], conditionType: 'no_socio', conventionId: null, plan: semanal, daysAgo: 1 },
-    { person: nonMemberPeople[1], conditionType: 'no_socio', conventionId: null, plan: mensual, daysAgo: 40 },
-    { person: beneficiaryPeople[0].person, conditionType: 'convenio', conventionId: beneficiaryPeople[0].conventionId, plan: mensual, daysAgo: 2 },
+    {
+      person: memberPeople[0],
+      conditionType: 'socio',
+      conventionId: null,
+      plan: mensual,
+      daysAgo: 3,
+    },
+    {
+      person: memberPeople[1],
+      conditionType: 'socio',
+      conventionId: null,
+      plan: diario,
+      daysAgo: 0,
+    },
+    {
+      person: nonMemberPeople[0],
+      conditionType: 'no_socio',
+      conventionId: null,
+      plan: semanal,
+      daysAgo: 1,
+    },
+    {
+      person: nonMemberPeople[1],
+      conditionType: 'no_socio',
+      conventionId: null,
+      plan: mensual,
+      daysAgo: 40,
+    },
+    {
+      person: beneficiaryPeople[0].person,
+      conditionType: 'convenio',
+      conventionId: beneficiaryPeople[0].conventionId,
+      plan: mensual,
+      daysAgo: 2,
+    },
   ]
 
   for (const spec of demoSalesSpec) {
     const purchaseDate = addDaysISO(today, -spec.daysAgo)
+
     const price =
-      spec.conditionType === 'socio' ? 30000 : spec.conditionType === 'convenio' ? 30000 : 50000
-    const unitPrice = spec.plan.id === diario.id ? (spec.conditionType === 'socio' ? 8000 : 12000) : spec.plan.id === semanal.id ? 55000 : price
+      spec.conditionType === 'socio'
+        ? 30000
+        : spec.conditionType === 'convenio'
+          ? 30000
+          : 50000
+
+    const unitPrice =
+      spec.plan.id === diario.id
+        ? spec.conditionType === 'socio'
+          ? 8000
+          : 12000
+        : spec.plan.id === semanal.id
+          ? 55000
+          : price
 
     const [sale] = await db
       .insert(sales)
@@ -211,7 +413,11 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
       createdAt: new Date(purchaseDate + 'T11:00:00'),
     })
 
-    const { startDate, endDate } = computePermitDates(spec.plan, purchaseDate)
+    const { startDate, endDate } = computePermitDates(
+      spec.plan,
+      purchaseDate,
+    )
+
     const [permit] = await db
       .insert(permits)
       .values({
@@ -237,5 +443,7 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
     }
   }
 
-  return { alreadySeeded: false }
+  return {
+    alreadySeeded: false,
+  }
 })

@@ -18,6 +18,7 @@ import { Route as AppSociosRouteImport } from './routes/_app.socios'
 import { Route as AppReportesRouteImport } from './routes/_app.reportes'
 import { Route as AppPlanesRouteImport } from './routes/_app.planes'
 import { Route as AppPersonasRouteImport } from './routes/_app.personas'
+import { Route as AppIngresobackupRouteImport } from './routes/_app.ingreso - backup'
 import { Route as AppIngresoRouteImport } from './routes/_app.ingreso'
 import { Route as AppConveniosRouteImport } from './routes/_app.convenios'
 import { Route as AppConfigRouteImport } from './routes/_app.config'
@@ -67,6 +68,11 @@ const AppPersonasRoute = AppPersonasRouteImport.update({
   path: '/personas',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIngresobackupRoute = AppIngresobackupRouteImport.update({
+  id: '/ingreso - backup',
+  path: '/ingreso - backup',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppIngresoRoute = AppIngresoRouteImport.update({
   id: '/ingreso',
   path: '/ingreso',
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/config': typeof AppConfigRoute
   '/convenios': typeof AppConveniosRoute
   '/ingreso': typeof AppIngresoRoute
+  '/ingreso - backup': typeof AppIngresobackupRoute
   '/personas': typeof AppPersonasRoute
   '/planes': typeof AppPlanesRoute
   '/reportes': typeof AppReportesRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/config': typeof AppConfigRoute
   '/convenios': typeof AppConveniosRoute
   '/ingreso': typeof AppIngresoRoute
+  '/ingreso - backup': typeof AppIngresobackupRoute
   '/personas': typeof AppPersonasRoute
   '/planes': typeof AppPlanesRoute
   '/reportes': typeof AppReportesRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/_app/config': typeof AppConfigRoute
   '/_app/convenios': typeof AppConveniosRoute
   '/_app/ingreso': typeof AppIngresoRoute
+  '/_app/ingreso - backup': typeof AppIngresobackupRoute
   '/_app/personas': typeof AppPersonasRoute
   '/_app/planes': typeof AppPlanesRoute
   '/_app/reportes': typeof AppReportesRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/config'
     | '/convenios'
     | '/ingreso'
+    | '/ingreso - backup'
     | '/personas'
     | '/planes'
     | '/reportes'
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/config'
     | '/convenios'
     | '/ingreso'
+    | '/ingreso - backup'
     | '/personas'
     | '/planes'
     | '/reportes'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | '/_app/config'
     | '/_app/convenios'
     | '/_app/ingreso'
+    | '/_app/ingreso - backup'
     | '/_app/personas'
     | '/_app/planes'
     | '/_app/reportes'
@@ -248,6 +260,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPersonasRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ingreso - backup': {
+      id: '/_app/ingreso - backup'
+      path: '/ingreso - backup'
+      fullPath: '/ingreso - backup'
+      preLoaderRoute: typeof AppIngresobackupRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/ingreso': {
       id: '/_app/ingreso'
       path: '/ingreso'
@@ -284,6 +303,7 @@ interface AppRouteChildren {
   AppConfigRoute: typeof AppConfigRoute
   AppConveniosRoute: typeof AppConveniosRoute
   AppIngresoRoute: typeof AppIngresoRoute
+  AppIngresobackupRoute: typeof AppIngresobackupRoute
   AppPersonasRoute: typeof AppPersonasRoute
   AppPlanesRoute: typeof AppPlanesRoute
   AppReportesRoute: typeof AppReportesRoute
@@ -298,6 +318,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppConfigRoute: AppConfigRoute,
   AppConveniosRoute: AppConveniosRoute,
   AppIngresoRoute: AppIngresoRoute,
+  AppIngresobackupRoute: AppIngresobackupRoute,
   AppPersonasRoute: AppPersonasRoute,
   AppPlanesRoute: AppPlanesRoute,
   AppReportesRoute: AppReportesRoute,

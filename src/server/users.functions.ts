@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
-import { db } from '../../db'
+import { db } from './db.server'
 import { users } from '../../db/schema'
 import { requireUser } from './auth.server'
 

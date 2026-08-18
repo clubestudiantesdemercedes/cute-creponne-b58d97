@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { eq, count, sum } from 'drizzle-orm'
-import { db } from '../../db'
+import { db } from './db.server'
 import {
   people,
   members,

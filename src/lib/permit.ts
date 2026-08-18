@@ -18,22 +18,75 @@ export function computePermitDates(
       endDate: plan.seasonEnd ?? purchaseDateISO,
     }
   }
+
   const startDate = purchaseDateISO
-  const endDate = addDaysISO(startDate, Math.max(plan.durationValue, 1) - 1)
+  const endDate = addDaysISO(
+    startDate,
+    Math.max(plan.durationValue, 1) - 1,
+  )
+
   return { startDate, endDate }
 }
 
-export function randomCode(length = 24): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const bytes = crypto.getRandomValues(new Uint8Array(length))
+/**
+ * Genera el código de un permiso.
+ *
+ * Formatos nuevos:
+ * SOC-XXXX → socio
+ * NOC-XXXX → no socio / convenio
+ *
+ * Si se llama sin prefijo, mantiene el comportamiento anterior
+ * y genera un código de 24 caracteres.
+ */
+export function randomCode(
+  prefix?: 'SOC' | 'NOC',
+): string {
+  const alphabet =
+    'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+  // Compatibilidad con cualquier lugar del sistema
+  // que todavía utilice randomCode() sin prefijo.
+  if (!prefix) {
+    const length = 24
+    const bytes = crypto.getRandomValues(
+      new Uint8Array(length),
+    )
+
+    let out = ''
+
+    for (let i = 0; i < length; i++) {
+      out += alphabet[bytes[i] % alphabet.length]
+    }
+
+    return out
+  }
+
+  // Nuevo formato: SOC-XXXX / NOC-XXXX
+  const length = 4
+
+  const bytes = crypto.getRandomValues(
+    new Uint8Array(length),
+  )
+
   let out = ''
-  for (let i = 0; i < length; i++) out += alphabet[bytes[i] % alphabet.length]
-  return out
+
+  for (let i = 0; i < length; i++) {
+    out += alphabet[bytes[i] % alphabet.length]
+  }
+
+  return `${prefix}-${out}`
 }
 
 export function generateSaleNumber(): string {
   const now = new Date()
-  const stamp = now.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)
-  const rand = Math.floor(Math.random() * 900 + 100)
+  const stamp = now
+    .toISOString()
+    .replace(/[-:TZ.]/g, '')
+    .slice(0, 14)
+
+  const rand = Math.floor(
+    Math.random() * 900 + 100,
+  )
+
   return `V-${stamp}-${rand}`
 }

@@ -46,6 +46,8 @@ export const people = pgTable(
   (t) => [uniqueIndex('people_dni_idx').on(t.dni)],
 )
 
+// ---------- MEMBERS ----------
+
 export const members = pgTable(
   'members',
   {
@@ -61,6 +63,8 @@ export const members = pgTable(
     uniqueIndex('members_person_idx').on(t.personId),
   ],
 )
+
+// ---------- FAMILIES ----------
 
 export const families = pgTable('families', {
   id: serial().primaryKey(),
@@ -161,6 +165,8 @@ export const saleItems = pgTable('sale_items', {
   unitPrice: integer('unit_price').notNull(),
 })
 
+// ---------- PAYMENTS ----------
+
 export const payments = pgTable('payments', {
   id: serial().primaryKey(),
   saleId: integer('sale_id').notNull().references(() => sales.id),
@@ -177,7 +183,7 @@ export const permits = pgTable(
   'permits',
   {
     id: serial().primaryKey(),
-    code: text('code').notNull(), // secure random identifier, encoded in QR
+    code: text('code').notNull(), // SOC-XXXX | NOC-XXXX
     personId: integer('person_id').notNull().references(() => people.id),
     saleItemId: integer('sale_item_id').notNull().references(() => saleItems.id),
     planId: integer('plan_id').notNull().references(() => plans.id),
@@ -195,10 +201,20 @@ export const permits = pgTable(
 
 export const entries = pgTable('entries', {
   id: serial().primaryKey(),
+
   personId: integer('person_id').notNull().references(() => people.id),
-  permitId: integer('permit_id').notNull().references(() => permits.id),
+
+  // Optional because an entry to the sports field does not necessarily
+  // require a pool permit.
+  permitId: integer('permit_id').references(() => permits.id),
+
   checkedInByUserId: integer('checked_in_by_user_id').notNull().references(() => users.id),
+
   method: text('method').notNull(), // qr | manual
+
+  // campo_deportes | pileta
+  entryType: text('entry_type').notNull().default('campo_deportes'),
+
   occurredAt: timestamp('occurred_at').defaultNow().notNull(),
 })
 

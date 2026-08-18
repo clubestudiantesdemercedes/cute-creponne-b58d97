@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { and, gte, lte, ne } from 'drizzle-orm'
-import { db } from '../../db'
+import { db } from './db.server'
 import { sales, entries, permits, payments } from '../../db/schema'
 import { requireUser } from './auth.server'
 import { todayISO } from '@/lib/format'

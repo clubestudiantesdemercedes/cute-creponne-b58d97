@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { and, eq, gte, lte, ne } from 'drizzle-orm'
-import { db } from '../../db'
+import { db } from './db.server'
 import { sales, cashClosures, auditLogs } from '../../db/schema'
 import { requireUser } from './auth.server'
 
