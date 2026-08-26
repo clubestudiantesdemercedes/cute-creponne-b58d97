@@ -39,7 +39,7 @@ export const Route = createFileRoute('/_app/venta')({
   component: VentaRapida,
 })
 
-type ConditionType = 'socio' | 'no_socio' | 'convenio'
+type ConditionType = 'socio' | 'deportista' | 'no_socio' | 'convenio'
 
 type PersonData = {
   personId: number
@@ -54,6 +54,7 @@ type PersonData = {
   conditionType: ConditionType
   conventionId: number | null
   conventionName?: string
+  isJubilado?: boolean
 }
 
 type CartItem = {
@@ -103,6 +104,58 @@ function VentaRapida() {
     name: 'elegir_tipo',
   })
 
+/** Tarifa a usar en pantalla y en el carrito (jubilado → reducida). */
+function effectiveConditionType(person: PersonData): ConditionType {
+  if (person.conditionType === 'convenio') return 'convenio'
+  if (person.isJubilado) return 'deportista'
+  return person.conditionType
+}
+function ageYears(birthDate: string | null | undefined): number | null {
+  if (!birthDate) return null
+  const birth = new Date(birthDate.includes('T') ? birthDate : birthDate + 'T00:00:00')
+  if (Number.isNaN(birth.getTime())) return null
+
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age -= 1
+  }
+  return age
+}
+
+/** No socio con hasta 12 años (y no jubilado) → 50 % del precio no socio. */
+function isNoSocioMenor(person: PersonData): boolean {
+  if (person.conditionType !== 'no_socio') return false
+  if (person.isJubilado) return false
+  const age = ageYears(person.birthDate)
+  return age != null && age <= 12
+}
+
+function priceForPerson(
+  person: PersonData,
+  planId: number,
+  priceFor: (
+    planId: number,
+    conditionType: ConditionType,
+    conventionId: number | null,
+  ) => number,
+): number {
+  const conditionType =
+    person.conditionType === 'convenio'
+      ? 'convenio'
+      : person.isJubilado
+        ? 'deportista'
+        : person.conditionType
+
+  let price = priceFor(planId, conditionType, person.conventionId)
+
+  if (isNoSocioMenor(person)) {
+    price = Math.round(price / 2)
+  }
+
+  return price
+}
   function priceFor(
     planId: number,
     conditionType: ConditionType,
@@ -137,11 +190,14 @@ function VentaRapida() {
 
     if (!plan) return
 
-    const price = priceFor(
-      planId,
-      person.conditionType,
-      person.conventionId,
-    )
+    const conditionType =
+      person.conditionType === 'convenio'
+        ? 'convenio'
+        : person.isJubilado
+          ? 'deportista'
+          : person.conditionType
+
+    const price = priceForPerson(person, planId, priceFor)
 
     setCart((current) => [
       ...current,
@@ -150,7 +206,7 @@ function VentaRapida() {
         personId: person.personId,
         fullName: person.fullName,
         dni: person.dni,
-        conditionType: person.conditionType,
+        conditionType,
         conventionId: person.conventionId,
         conventionName: person.conventionName,
         planId,
@@ -353,6 +409,15 @@ function VentaRapida() {
           }
           onSelect={(planId) =>
             addToCart(step.person, planId)
+          }
+          onToggleJubilado={(value) =>
+            setStep({
+              ...step,
+              person: {
+                ...step.person,
+                isJubilado: value,
+              },
+            })
           }
         />
       )}
@@ -620,7 +685,11 @@ function BuscarSocio({
               phone: selected.person.phone ?? '',
               email: selected.person.email ?? '',
               address: selected.person.address ?? '',
-              conditionType: 'socio',
+              conditionType:
+                (selected.member as { category?: string }).category ===
+                'deportista'
+                  ? 'deportista'
+                  : 'socio',
               conventionId: null,
             })
           }
@@ -1307,6 +1376,7 @@ function ElegirPlan({
   priceFor,
   onBack,
   onSelect,
+  onToggleJubilado,
 }: {
   plans: Array<{
     id: number
@@ -1322,7 +1392,15 @@ function ElegirPlan({
   ) => number
   onBack: () => void
   onSelect: (planId: number) => void
+  onToggleJubilado: (value: boolean) => void
 }) {
+  const tariffType =
+    persona.conditionType === 'convenio'
+      ? 'convenio'
+      : persona.isJubilado
+        ? 'deportista'
+        : persona.conditionType
+
   return (
     <Card>
       <BackLink onBack={onBack} />
@@ -1336,9 +1414,32 @@ function ElegirPlan({
         {persona.dni}
       </p>
 
-      <p className="text-sm font-semibold text-blue-800 mb-4">
-        {conditionLabel(persona.conditionType)}
+      {persona.conditionType !== 'convenio' && (
+        <label className="flex items-center gap-2 mb-4 text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!persona.isJubilado}
+            onChange={(e) => onToggleJubilado(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <span>
+            <span className="font-semibold text-slate-800">
+              Es jubilado
+            </span>
+            <span className="text-slate-600">
+              {' '}
+              — aplica tarifa reducida (igual que deportista / menor)
+            </span>
+          </span>
+        </label>
+      )}
 
+      <p className="text-sm font-semibold text-blue-800 mb-4">
+        {persona.isJubilado
+          ? 'Jubilado (tarifa reducida)'
+          : isNoSocioMenor(persona)
+            ? 'No socio menor (hasta 12 años) — 50% de descuento'
+            : conditionLabel(persona.conditionType)}
         {persona.conventionName
           ? ` — ${persona.conventionName}`
           : ''}
@@ -1348,11 +1449,7 @@ function ElegirPlan({
         {plans
           .filter((p) => p.active)
           .map((p) => {
-            const price = priceFor(
-              p.id,
-              persona.conditionType,
-              persona.conventionId,
-            )
+            const price = priceForPerson(persona, p.id, priceFor)
 
             return (
               <li key={p.id}>
@@ -1382,10 +1479,67 @@ function ElegirPlan({
   )
 }
 
+function ageYears(birthDate: string | null | undefined): number | null {
+  if (!birthDate) return null
+  const birth = new Date(
+    birthDate.includes('T') ? birthDate : birthDate + 'T00:00:00',
+  )
+  if (Number.isNaN(birth.getTime())) return null
+
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age -= 1
+  }
+  return age
+}
+
+function isNoSocioMenor(person: PersonData): boolean {
+  if (person.conditionType !== 'no_socio') return false
+  if (person.isJubilado) return false
+  const age = ageYears(person.birthDate)
+  return age != null && age <= 12
+}
+
+function priceForPerson(
+  person: PersonData,
+  planId: number,
+  priceForFn: (
+    planId: number,
+    conditionType: ConditionType,
+    conventionId: number | null,
+  ) => number,
+): number {
+  const conditionType =
+    person.conditionType === 'convenio'
+      ? 'convenio'
+      : person.isJubilado
+        ? 'deportista'
+        : person.conditionType
+
+  let price = priceForFn(planId, conditionType, person.conventionId)
+
+  if (isNoSocioMenor(person)) {
+    price = Math.round(price / 2)
+  }
+
+  return price
+}
+
 function conditionLabel(c: ConditionType) {
   if (c === 'socio') return 'Socio'
+  if (c === 'deportista') return 'Deportista'
   if (c === 'no_socio') return 'No socio'
   return 'Convenio'
+}
+
+/** Interpreta el prefijo del código de permiso. */
+function permitKindFromCode(code: string): string {
+  if (code.startsWith('SOC-')) return 'Socio'
+  if (code.startsWith('NOS-')) return 'No socio'
+  if (code.startsWith('NOC-')) return 'Convenio'
+  return ''
 }
 
 /* ============================================================
@@ -1762,13 +1916,24 @@ function VentaConfirmada({
                       )}
                     </p>
 
-                    <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                        <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
                       <p className="text-xs text-slate-500 font-medium">
                         Código de validación
                       </p>
 
-                      <p className="text-lg font-bold tracking-wider text-blue-900">
+                      <p className="text-xs text-slate-600 mt-1">
+                        Tipo:{' '}
+                        <span className="font-semibold text-slate-800">
+                          {permitKindFromCode(permit.code)}
+                        </span>
+                      </p>
+
+                      <p className="text-lg font-bold tracking-wider text-blue-900 font-mono mt-1">
                         {permit.code}
+                      </p>
+
+                      <p className="text-xs text-slate-400 mt-2">
+                        SOC = socio · NOS = no socio · NOC = convenio
                       </p>
                     </div>
                   </>

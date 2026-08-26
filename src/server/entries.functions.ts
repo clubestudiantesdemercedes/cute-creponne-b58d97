@@ -473,30 +473,6 @@ export const listEntries = createServerFn({
   .handler(async ({ data }) => {
     await requireUser()
 
-    const conditions = []
-
-    if (data.dateFrom) {
-      conditions.push(
-        gte(
-          entries.occurredAt,
-          new Date(
-            data.dateFrom + 'T00:00:00',
-          ),
-        ),
-      )
-    }
-
-    if (data.dateTo) {
-      conditions.push(
-        lte(
-          entries.occurredAt,
-          new Date(
-            data.dateTo + 'T23:59:59',
-          ),
-        ),
-      )
-    }
-
     const rows = await db
       .select({
         entry: entries,
@@ -505,25 +481,51 @@ export const listEntries = createServerFn({
         plan: plans,
       })
       .from(entries)
-      .innerJoin(
-        people,
-        eq(entries.personId, people.id),
-      )
-      .leftJoin(
-        permits,
-        eq(entries.permitId, permits.id),
-      )
-      .leftJoin(
-        plans,
-        eq(permits.planId, plans.id),
-      )
-      .where(
-        conditions.length
-          ? and(...conditions)
-          : undefined,
-      )
+      .innerJoin(people, eq(entries.personId, people.id))
+      .leftJoin(permits, eq(entries.permitId, permits.id))
+      .leftJoin(plans, eq(permits.planId, plans.id))
       .orderBy(desc(entries.occurredAt))
-      .limit(300)
+      .limit(500)
 
-    return rows
+    const filtered = rows.filter((r) => {
+      const day =
+        r.entry.occurredAt instanceof Date
+          ? r.entry.occurredAt.toISOString().slice(0, 10)
+          : String(r.entry.occurredAt).slice(0, 10)
+      if (data.dateFrom && day < data.dateFrom) return false
+      if (data.dateTo && day > data.dateTo) return false
+      return true
+    })
+
+    return filtered.slice(0, 300).map((r) => ({
+      entry: {
+        id: r.entry.id,
+        personId: r.entry.personId,
+        permitId: r.entry.permitId,
+        method: r.entry.method,
+        entryType: r.entry.entryType,
+        occurredAt:
+          r.entry.occurredAt instanceof Date
+            ? r.entry.occurredAt.toISOString()
+            : String(r.entry.occurredAt),
+      },
+      person: {
+        id: r.person.id,
+        firstName: r.person.firstName,
+        lastName: r.person.lastName,
+        dni: r.person.dni,
+      },
+      permit: r.permit
+        ? {
+            id: r.permit.id,
+            code: r.permit.code,
+          }
+        : null,
+      plan: r.plan
+        ? {
+            id: r.plan.id,
+            name: r.plan.name,
+          }
+        : null,
+    }))
   })

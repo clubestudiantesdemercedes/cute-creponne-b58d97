@@ -426,7 +426,8 @@ function Scanner({
   const videoRef = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [active, setActive] = useState(false)
-  const [manualCode, setManualCode] = useState('')
+  const [manualPrefix, setManualPrefix] = useState<'SOC' | 'NOS' | 'NOC'>('SOC')
+  const [manualSuffix, setManualSuffix] = useState('')
 
   const handleDetectedCode = useCallback(
     (code: string) => {
@@ -566,33 +567,86 @@ function Scanner({
         </p>
       )}
 
-      <form
+            <form
         onSubmit={(e) => {
           e.preventDefault()
 
-          if (manualCode.trim()) {
-            handleDetectedCode(
-              manualCode.trim(),
-            )
-          }
-        }}
-        className="flex gap-2 pt-2 border-t border-slate-100"
-      >
-        <input
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          placeholder="O ingresá el código del permiso manualmente"
-          value={manualCode}
-          onChange={(e) =>
-            setManualCode(e.target.value)
-          }
-        />
+          const suffix = manualSuffix
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '')
 
-        <button
-          disabled={busy}
-          className="bg-slate-800 text-white px-3 rounded-lg text-sm font-semibold disabled:opacity-50"
-        >
-          Validar
-        </button>
+          if (suffix.length !== 4) {
+            setError(
+              'Ingresá exactamente 4 caracteres del código (letras o números).',
+            )
+            return
+          }
+
+          setError(null)
+          handleDetectedCode(`${manualPrefix}-${suffix}`)
+        }}
+        className="pt-2 border-t border-slate-100 space-y-3"
+      >
+        <p className="text-xs text-slate-500 font-medium">
+          O ingresá el código del permiso manualmente
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { value: 'SOC' as const, label: 'SOC (socio)' },
+              { value: 'NOS' as const, label: 'NOS (no socio)' },
+              { value: 'NOC' as const, label: 'NOC (convenio)' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setManualPrefix(opt.value)}
+              className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
+                manualPrefix === opt.value
+                  ? 'bg-blue-900 text-white border-blue-900'
+                  : 'bg-white text-slate-700 border-slate-300'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="font-mono font-bold text-blue-900 text-sm shrink-0">
+            {manualPrefix}-
+          </span>
+          <input
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono tracking-widest uppercase"
+            placeholder="4 caracteres"
+            maxLength={4}
+            value={manualSuffix}
+            onChange={(e) => {
+              const v = e.target.value
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '')
+                .slice(0, 4)
+              setManualSuffix(v)
+            }}
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="bg-slate-800 text-white px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+          >
+            Validar
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-400">
+          Ejemplo: elegís NOS y escribís AB12 → se valida como NOS-AB12
+        </p>
       </form>
     </div>
   )

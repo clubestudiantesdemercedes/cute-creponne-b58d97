@@ -31,15 +31,15 @@ export function computePermitDates(
 /**
  * Genera el código de un permiso.
  *
- * Formatos nuevos:
+ * Formatos:
  * SOC-XXXX → socio
- * NOC-XXXX → no socio / convenio
+ * NOS-XXXX → no socio
+ * NOC-XXXX → convenio
  *
- * Si se llama sin prefijo, mantiene el comportamiento anterior
- * y genera un código de 24 caracteres.
+ * Si se llama sin prefijo, genera un código de 24 caracteres (compatibilidad).
  */
 export function randomCode(
-  prefix?: 'SOC' | 'NOC',
+  prefix?: 'SOC' | 'NOS' | 'NOC',
 ): string {
   const alphabet =
     'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -61,7 +61,7 @@ export function randomCode(
     return out
   }
 
-  // Nuevo formato: SOC-XXXX / NOC-XXXX
+  // Formato: SOC-XXXX / NOS-XXXX / NOC-XXXX
   const length = 4
 
   const bytes = crypto.getRandomValues(

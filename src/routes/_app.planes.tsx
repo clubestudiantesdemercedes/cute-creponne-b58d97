@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
-import { Plus, Save, Pencil, Power, PowerOff, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Save, CalendarRange } from 'lucide-react'
 import {
   listPlans,
   listAllPrices,
@@ -17,586 +17,398 @@ export const Route = createFileRoute('/_app/planes')({
       listAllPrices(),
       listConventionsAdmin(),
     ])
-
     return { plans, prices, conventions }
   },
   component: PlanesPage,
 })
 
-const CONDITIONS: {
-  value: 'socio' | 'no_socio' | 'convenio'
-  label: string
-}[] = [
-  { value: 'socio', label: 'Socio' },
-  { value: 'no_socio', label: 'No socio' },
-  { value: 'convenio', label: 'Convenio (general)' },
-]
+/** Períodos fijos del natatorio */
+const PERIODS = [
+  {
+    key: 'dia',
+    label: 'Día',
+    durationValue: 1,
+    durationUnit: 'dia' as const,
+    hint: '1 día',
+  },
+  {
+    key: 'semana',
+    label: 'Semana',
+    durationValue: 7,
+    durationUnit: 'dia' as const,
+    hint: '7 días',
+  },
+  {
+    key: 'mensual',
+    label: 'Mensual',
+    durationValue: 30,
+    durationUnit: 'dia' as const,
+    hint: '30 días',
+  },
+  {
+    key: 'temporada',
+    label: 'Temporada',
+    durationValue: 1,
+    durationUnit: 'temporada' as const,
+    hint: 'Fechas de temporada',
+  },
+] as const
 
-type PlanForm = {
-  id?: number
-  name: string
-  description: string
-  durationValue: number
-  durationUnit: 'dia' | 'temporada'
-  seasonStart: string
-  seasonEnd: string
-  active: boolean
-}
+type PeriodKey = (typeof PERIODS)[number]['key']
+type CategoryTab = 'socio' | 'deportista' | 'no_socio' | 'convenio'
 
 function PlanesPage() {
   const { plans, prices, conventions } = Route.useLoaderData()
 
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [tab, setTab] = useState<CategoryTab>('socio')
+  const [conventionId, setConventionId] = useState<number | null>(
+    conventions[0]?.id ?? null,
+  )
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const [form, setForm] = useState<PlanForm>({
-    name: '',
-    description: '',
-    durationValue: 30,
-    durationUnit: 'dia',
-    seasonStart: '',
-    seasonEnd: '',
-    active: true,
-  })
+  // Montos en edición: clave = `${periodKey}|${category}|${conventionId ?? 'x'}`
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
 
-  async function reload() {
-    window.location.reload()
-  }
+  // Fechas de temporada (del plan temporada)
+  const seasonPlan = useMemo(
+    () =>
+      plans.find(
+        (p) => p.durationUnit === 'temporada' && p.active !== false,
+      ) ?? plans.find((p) => p.durationUnit === 'temporada'),
+    [plans],
+  )
 
-  function resetForm() {
-    setForm({
-      name: '',
-      description: '',
-      durationValue: 30,
-      durationUnit: 'dia',
-      seasonStart: '',
-      seasonEnd: '',
-      active: true,
-    })
+  const [seasonStart, setSeasonStart] = useState(seasonPlan?.seasonStart ?? '')
+  const [seasonEnd, setSeasonEnd] = useState(seasonPlan?.seasonEnd ?? '')
 
-    setCreating(false)
-    setEditingId(null)
-  }
-
-  function startCreate() {
-    setEditingId(null)
-
-    setForm({
-      name: '',
-      description: '',
-      durationValue: 30,
-      durationUnit: 'dia',
-      seasonStart: '',
-      seasonEnd: '',
-      active: true,
-    })
-
-    setCreating(true)
-  }
-
-  function startEdit(plan: (typeof plans)[number]) {
-    setCreating(false)
-    setEditingId(plan.id)
-
-    setForm({
-      id: plan.id,
-      name: plan.name,
-      description: plan.description ?? '',
-      durationValue: plan.durationValue,
-      durationUnit: plan.durationUnit as 'dia' | 'temporada',
-      seasonStart: plan.seasonStart ?? '',
-      seasonEnd: plan.seasonEnd ?? '',
-      active: plan.active,
-    })
-
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  async function savePlan(e: React.FormEvent) {
-    e.preventDefault()
-
-    await upsertPlan({
-      data: {
-        id: form.id,
-        name: form.name,
-        description: form.description || null,
-        durationValue:
-          form.durationUnit === 'temporada'
-            ? 1
-            : form.durationValue,
-        durationUnit: form.durationUnit,
-        seasonStart:
-          form.durationUnit === 'temporada'
-            ? form.seasonStart
-            : null,
-        seasonEnd:
-          form.durationUnit === 'temporada'
-            ? form.seasonEnd
-            : null,
-        active: form.active,
-        sortOrder:
-          form.id != null
-            ? plans.find((p) => p.id === form.id)?.sortOrder ?? 0
-            : plans.length + 1,
-      },
-    })
-
-    resetForm()
-    reload()
-  }
-
-  async function togglePlan(plan: (typeof plans)[number]) {
-    const action = plan.active ? 'desactivar' : 'activar'
-
-    const confirmed = window.confirm(
-      `¿Seguro que querés ${action} el plan "${plan.name}"?`,
+  function findPlan(period: (typeof PERIODS)[number]) {
+    return plans.find(
+      (p) =>
+        p.durationUnit === period.durationUnit &&
+        p.durationValue === period.durationValue,
     )
-
-    if (!confirmed) return
-
-    await upsertPlan({
-      data: {
-        id: plan.id,
-        name: plan.name,
-        description: plan.description,
-        durationValue: plan.durationValue,
-        durationUnit: plan.durationUnit as 'dia' | 'temporada',
-        seasonStart: plan.seasonStart,
-        seasonEnd: plan.seasonEnd,
-        active: !plan.active,
-        sortOrder: plan.sortOrder,
-      },
-    })
-
-    reload()
   }
 
   function priceOf(
     planId: number,
-    condition: string,
-    conventionId: number | null,
+    condition: CategoryTab,
+    convId: number | null,
   ) {
     return (
       prices.find(
         (p) =>
           p.planId === planId &&
           p.conditionType === condition &&
-          p.conventionId === conventionId,
+          (condition === 'convenio'
+            ? p.conventionId === convId
+            : p.conventionId == null),
       )?.amount ?? 0
     )
   }
 
-  async function savePrice(
-    planId: number,
-    conditionType: 'socio' | 'no_socio' | 'convenio',
-    conventionId: number | null,
-    amount: number,
-  ) {
-    await upsertPrice({
-      data: {
-        planId,
-        conditionType,
-        conventionId,
-        amount,
-      },
-    })
-
-    reload()
+  function draftKey(periodKey: PeriodKey, category: CategoryTab, convId: number | null) {
+    return `${periodKey}|${category}|${convId ?? 'x'}`
   }
 
+  function getDraftAmount(
+    period: (typeof PERIODS)[number],
+    category: CategoryTab,
+    convId: number | null,
+  ) {
+    const key = draftKey(period.key, category, convId)
+    if (drafts[key] !== undefined) return drafts[key]
+
+    const plan = findPlan(period)
+    if (!plan) return ''
+    const amount = priceOf(plan.id, category, category === 'convenio' ? convId : null)
+    return amount ? String(amount) : ''
+  }
+
+  function setDraftAmount(
+    periodKey: PeriodKey,
+    category: CategoryTab,
+    convId: number | null,
+    value: string,
+  ) {
+    const key = draftKey(periodKey, category, convId)
+    setDrafts((prev) => ({ ...prev, [key]: value.replace(/[^\d]/g, '') }))
+  }
+
+  async function ensurePlan(period: (typeof PERIODS)[number]) {
+    const existing = findPlan(period)
+    if (existing) return existing
+
+    return upsertPlan({
+      data: {
+        name: period.label,
+        description: period.hint,
+        durationValue: period.durationValue,
+        durationUnit: period.durationUnit,
+        seasonStart: period.durationUnit === 'temporada' ? seasonStart || null : null,
+        seasonEnd: period.durationUnit === 'temporada' ? seasonEnd || null : null,
+        active: true,
+        sortOrder: PERIODS.findIndex((p) => p.key === period.key) + 1,
+      },
+    })
+  }
+
+  async function saveSeasonDates() {
+    setSaving(true)
+    setError(null)
+    setMessage(null)
+    try {
+      if (!seasonStart || !seasonEnd) {
+        throw new Error('Completá inicio y fin de temporada.')
+      }
+      if (seasonStart > seasonEnd) {
+        throw new Error('La fecha de inicio no puede ser posterior a la de fin.')
+      }
+
+      const plan = await ensurePlan(PERIODS.find((p) => p.key === 'temporada')!)
+      await upsertPlan({
+        data: {
+          id: plan.id,
+          name: plan.name || 'Temporada',
+          description: plan.description,
+          durationValue: 1,
+          durationUnit: 'temporada',
+          seasonStart,
+          seasonEnd,
+          active: true,
+          sortOrder: plan.sortOrder ?? 5,
+        },
+      })
+      setMessage('Fechas de temporada guardadas.')
+      window.location.reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudieron guardar las fechas.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveCategoryPrices() {
+    setSaving(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      if (tab === 'convenio' && conventionId == null) {
+        throw new Error('Elegí un convenio para cargar sus tarifas.')
+      }
+
+      const convId = tab === 'convenio' ? conventionId : null
+
+      for (const period of PERIODS) {
+        const raw = getDraftAmount(period, tab, convId)
+        if (raw === '') continue
+
+        const amount = Number(raw)
+        if (Number.isNaN(amount) || amount < 0) {
+          throw new Error(`Monto inválido en ${period.label}.`)
+        }
+
+        const plan = await ensurePlan(period)
+        await upsertPrice({
+          data: {
+            planId: plan.id,
+            conditionType: tab,
+            conventionId: convId,
+            amount,
+          },
+        })
+      }
+
+      setMessage('Tarifas guardadas correctamente.')
+      window.location.reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudieron guardar las tarifas.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const activeConventions = conventions.filter((c) => c.status === 'activo')
+
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Planes y tarifas
-          </h1>
-
-          <p className="text-sm text-slate-500 mt-1">
-            Administrá los planes, sus tarifas y su estado.
-          </p>
-        </div>
-
-        <button
-          onClick={creating ? resetForm : startCreate}
-          className="flex items-center gap-1.5 bg-blue-900 text-white px-3 py-2 rounded-lg text-sm font-semibold"
-        >
-          {creating ? (
-            <>
-              <X className="w-4 h-4" />
-              Cancelar
-            </>
-          ) : (
-            <>
-              <Plus className="w-4 h-4" />
-              Nuevo plan
-            </>
-          )}
-        </button>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Planes y tarifas</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Organizado por categoría. Períodos fijos: día (1), semana (7), quincena (14), mensual (30) y
+          temporada.
+        </p>
       </div>
 
-      {(creating || editingId !== null) && (
-        <form
-          onSubmit={savePlan}
-          className="bg-white rounded-xl shadow-sm p-5 space-y-4 border border-blue-100"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="font-bold text-lg">
-              {editingId !== null
-                ? 'Modificar plan'
-                : 'Nuevo plan'}
-            </h2>
-
-            {editingId !== null && (
-              <span
-                className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                  form.active
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-red-100 text-red-700'
-                }`}
-              >
-                {form.active ? 'ACTIVO' : 'INACTIVO'}
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="text-sm">
-              <span className="text-slate-600">
-                Nombre *
-              </span>
-
-              <input
-                required
-                value={form.name}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    name: e.target.value,
-                  })
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-              />
-            </label>
-
-            <label className="text-sm">
-              <span className="text-slate-600">
-                Tipo de duración
-              </span>
-
-              <select
-                value={form.durationUnit}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    durationUnit:
-                      e.target.value as
-                        | 'dia'
-                        | 'temporada',
-                  })
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-              >
-                <option value="dia">Días</option>
-                <option value="temporada">
-                  Temporada (fechas fijas)
-                </option>
-              </select>
-            </label>
-
-            {form.durationUnit === 'dia' ? (
-              <label className="text-sm">
-                <span className="text-slate-600">
-                  Duración (días)
-                </span>
-
-                <input
-                  type="number"
-                  min={1}
-                  value={form.durationValue}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      durationValue: Number(
-                        e.target.value,
-                      ),
-                    })
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-                />
-              </label>
-            ) : (
-              <>
-                <label className="text-sm">
-                  <span className="text-slate-600">
-                    Inicio de temporada
-                  </span>
-
-                  <input
-                    type="date"
-                    value={form.seasonStart}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        seasonStart: e.target.value,
-                      })
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-                  />
-                </label>
-
-                <label className="text-sm">
-                  <span className="text-slate-600">
-                    Fin de temporada
-                  </span>
-
-                  <input
-                    type="date"
-                    value={form.seasonEnd}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        seasonEnd: e.target.value,
-                      })
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-                  />
-                </label>
-              </>
-            )}
-          </div>
-
-          <label className="text-sm block">
-            <span className="text-slate-600">
-              Descripción
-            </span>
-
+      {/* Temporada: fechas */}
+      <div className="bg-white rounded-xl shadow-sm p-5 space-y-3">
+        <div className="flex items-center gap-2 font-semibold text-slate-800">
+          <CalendarRange className="w-5 h-5 text-blue-800" />
+          Temporada (fechas)
+        </div>
+        <p className="text-xs text-slate-500">
+          Se definen una vez antes del inicio. Valen para socio, no socio y convenios.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            <span className="block text-slate-600 mb-1">Inicio</span>
             <input
-              value={form.description}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  description: e.target.value,
-                })
-              }
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              type="date"
+              value={seasonStart}
+              onChange={(e) => setSeasonStart(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2"
             />
           </label>
+          <label className="text-sm">
+            <span className="block text-slate-600 mb-1">Fin</span>
+            <input
+              type="date"
+              value={seasonEnd}
+              onChange={(e) => setSeasonEnd(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={saveSeasonDates}
+            disabled={saving}
+            className="bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+          >
+            Guardar fechas
+          </button>
+        </div>
+      </div>
 
-          {editingId !== null && (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.active}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    active: e.target.checked,
-                  })
-                }
-              />
+      {/* Tabs categoría */}
+      <div className="flex flex-wrap gap-2">
+                {(
+          [
+            { value: 'socio' as const, label: 'Socios' },
+            { value: 'deportista' as const, label: 'Deportistas' },
+            { value: 'no_socio' as const, label: 'No socios' },
+            { value: 'convenio' as const, label: 'Convenios' },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => setTab(t.value)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+              tab === t.value
+                ? 'bg-blue-900 text-white'
+                : 'bg-white border border-slate-300 text-slate-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-              <span>
-                Plan activo
-              </span>
-            </label>
+      {tab === 'convenio' && (
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <label className="text-sm font-medium text-slate-700 block mb-2">
+            Convenio
+          </label>
+          {activeConventions.length === 0 ? (
+            <p className="text-sm text-amber-700">
+              No hay convenios activos. Creá uno en el menú Convenios.
+            </p>
+          ) : (
+            <select
+              className="w-full sm:w-80 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              value={conventionId ?? ''}
+              onChange={(e) =>
+                setConventionId(e.target.value ? Number(e.target.value) : null)
+              }
+            >
+              {activeConventions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           )}
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="bg-emerald-600 text-white font-semibold px-4 py-2 rounded-lg text-sm"
-            >
-              {editingId !== null
-                ? 'Guardar cambios'
-                : 'Crear plan'}
-            </button>
-
-            <button
-              type="button"
-              onClick={resetForm}
-              className="border border-slate-300 text-slate-600 font-semibold px-4 py-2 rounded-lg text-sm"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
+          <p className="text-xs text-slate-500 mt-2">
+            Cada convenio tiene su propia grilla de precios por período.
+          </p>
+        </div>
       )}
 
-      {plans.map((plan) => (
-        <div
-          key={plan.id}
-          className={`bg-white rounded-xl shadow-sm p-5 ${
-            !plan.active
-              ? 'opacity-75 border border-red-200'
-              : ''
-          }`}
-        >
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-bold text-lg">
-                  {plan.name}
-                </h2>
+      {/* Grilla de precios por período */}
+      <div className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+        <h2 className="font-semibold text-slate-800">
+          Tarifas —{' '}
+          {tab === 'socio'
+            ? 'Socios'
+            : tab === 'deportista'
+              ? 'Deportistas'
+              : tab === 'no_socio'
+                ? 'No socios'
+                : 'Convenio'}
+        </h2>
 
-                <span
-                  className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                    plan.active
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}
-                >
-                  {plan.active
-                    ? 'ACTIVO'
-                    : 'INACTIVO'}
-                </span>
-              </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-2 pr-3">Período</th>
+              <th className="py-2 pr-3">Duración</th>
+              <th className="py-2">Precio ($)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {PERIODS.map((period) => {
+              const convId = tab === 'convenio' ? conventionId : null
+              const disabled = tab === 'convenio' && conventionId == null
+              return (
+                <tr key={period.key}>
+                  <td className="py-3 pr-3 font-medium text-slate-800">{period.label}</td>
+                  <td className="py-3 pr-3 text-slate-500">{period.hint}</td>
+                  <td className="py-3">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      disabled={disabled || saving}
+                      placeholder="0"
+                      value={getDraftAmount(period, tab, convId)}
+                      onChange={(e) =>
+                        setDraftAmount(period.key, tab, convId, e.target.value)
+                      }
+                      className="w-36 rounded-lg border border-slate-300 px-3 py-2 font-mono disabled:bg-slate-50"
+                    />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
 
-              <p className="text-sm text-slate-500 mt-1">
-                {plan.durationUnit === 'temporada'
-                  ? `Temporada: ${plan.seasonStart} a ${plan.seasonEnd}`
-                  : `${plan.durationValue} días`}
-              </p>
-
-              {plan.description && (
-                <p className="text-sm text-slate-500 mt-1">
-                  {plan.description}
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={() => startEdit(plan)}
-                className="flex items-center gap-1.5 border border-blue-300 text-blue-700 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-50"
-              >
-                <Pencil className="w-4 h-4" />
-                Modificar
-              </button>
-
-              <button
-                onClick={() => togglePlan(plan)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold ${
-                  plan.active
-                    ? 'border border-red-300 text-red-700 hover:bg-red-50'
-                    : 'border border-emerald-300 text-emerald-700 hover:bg-emerald-50'
-                }`}
-              >
-                {plan.active ? (
-                  <>
-                    <PowerOff className="w-4 h-4" />
-                    Inactivar
-                  </>
-                ) : (
-                  <>
-                    <Power className="w-4 h-4" />
-                    Activar
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {CONDITIONS.map((c) => (
-              <PriceEditor
-                key={c.value}
-                label={c.label}
-                value={priceOf(
-                  plan.id,
-                  c.value,
-                  null,
-                )}
-                onSave={(amount) =>
-                  savePrice(
-                    plan.id,
-                    c.value,
-                    null,
-                    amount,
-                  )
-                }
-              />
-            ))}
-          </div>
-
-          {conventions.length > 0 && (
-            <div className="mt-4 border-t border-slate-100 pt-4">
-              <p className="text-sm font-medium text-slate-600 mb-2">
-                Tarifas específicas por convenio
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {conventions.map((c) => (
-                  <PriceEditor
-                    key={c.id}
-                    label={c.name}
-                    value={priceOf(
-                      plan.id,
-                      'convenio',
-                      c.id,
-                    )}
-                    onSave={(amount) =>
-                      savePrice(
-                        plan.id,
-                        'convenio',
-                        c.id,
-                        amount,
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={saveCategoryPrices}
+            disabled={saving || (tab === 'convenio' && conventionId == null)}
+            className="inline-flex items-center gap-2 bg-blue-900 text-white font-semibold px-4 py-2.5 rounded-lg text-sm disabled:opacity-60"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Guardando...' : 'Guardar tarifas de esta categoría'}
+          </button>
+          {message && <p className="text-sm text-emerald-700">{message}</p>}
+          {error && <p className="text-sm text-red-700">{error}</p>}
         </div>
-      ))}
-    </div>
-  )
-}
+      </div>
 
-function PriceEditor({
-  label,
-  value,
-  onSave,
-}: {
-  label: string
-  value: number
-  onSave: (amount: number) => void
-}) {
-  const [amount, setAmount] = useState(value)
-  const [dirty, setDirty] = useState(false)
-
-  return (
-    <div className="border border-slate-200 rounded-lg p-3">
-      <p className="text-xs text-slate-500 mb-1">
-        {label}
-      </p>
-
-      <p className="text-xs text-slate-400 mb-1">
-        Actual: {formatARS(value)}
-      </p>
-
-      <div className="flex gap-1">
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => {
-            setAmount(Number(e.target.value))
-            setDirty(true)
-          }}
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-        />
-
-        <button
-          disabled={!dirty}
-          onClick={() => {
-            onSave(amount)
-            setDirty(false)
-          }}
-          className="bg-blue-900 disabled:opacity-30 text-white p-1.5 rounded-lg"
-        >
-          <Save className="w-4 h-4" />
-        </button>
+      <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+        <p className="font-medium text-slate-600 mb-1">Cómo se usa</p>
+        <ul className="list-disc pl-4 space-y-1">
+          <li>Elegí la categoría (Socios, No socios o Convenios).</li>
+          <li>Completá el precio de cada período (podés dejar vacío los que no uses).</li>
+          <li>
+            Si el plan aún no existe (día, semana, etc.), se crea solo al guardar.
+          </li>
+          <li>La temporada usa las fechas del bloque de arriba.</li>
+        </ul>
       </div>
     </div>
   )

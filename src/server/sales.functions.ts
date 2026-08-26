@@ -10,6 +10,7 @@ import {
   plans,
   people,
   auditLogs,
+  entries,
 } from '../../db/schema'
 import { requireUser } from './auth.server'
 import { computePermitDates } from '@/lib/permit'
@@ -19,7 +20,7 @@ import { resolvePrice } from './prices.db.server'
 
 const SaleItemInput = z.object({
   personId: z.number(),
-  conditionType: z.enum(['socio', 'no_socio', 'convenio']),
+  conditionType: z.enum(['socio', 'deportista', 'no_socio', 'convenio']),
   conventionId: z.number().optional().nullable(),
   planId: z.number(),
 })
@@ -155,9 +156,12 @@ export const createSale = createServerFn({ method: 'POST' })
 
       permitRows.push({
         code:
-          item.conditionType === 'socio'
+          item.conditionType === 'socio' ||
+          item.conditionType === 'deportista'
             ? randomCode('SOC')
-            : randomCode('NOC'),
+            : item.conditionType === 'no_socio'
+              ? randomCode('NOS')
+              : randomCode('NOC'),
 
         personId: item.personId,
         saleItemId: item.id,
@@ -175,16 +179,36 @@ export const createSale = createServerFn({ method: 'POST' })
       .returning()
 
     // ------------------------------------------------------------
-    // AUDITORÍA
+    // INGRESO AUTOMÁTICO AL CAMPO DE DEPORTES
     // ------------------------------------------------------------
     //
-    // Ya NO registramos un ingreso acá.
-    //
-    // Una venta y un ingreso son acontecimientos diferentes:
-    //
-    //   Venta  -> registra dinero/pago
-    //   Permiso -> habilita el acceso
-    //   Entry   -> registra que efectivamente ingresó
+    // La venta registra el paso por el campo.
+    // La pileta sigue requiriendo control de ingreso aparte.
+    // ------------------------------------------------------------
+
+    const personIdsForEntry = [
+      ...new Set(insertedItems.map((item) => item.personId)),
+    ]
+
+    const createdEntries = []
+
+    for (const personId of personIdsForEntry) {
+      const [entry] = await db
+        .insert(entries)
+        .values({
+          personId,
+          permitId: null,
+          checkedInByUserId: user.userId,
+          method: 'manual',
+          entryType: 'campo_deportes',
+        })
+        .returning()
+
+      createdEntries.push(entry)
+    }
+
+    // ------------------------------------------------------------
+    // AUDITORÍA
     // ------------------------------------------------------------
 
     await db.insert(auditLogs).values({
@@ -196,6 +220,7 @@ export const createSale = createServerFn({ method: 'POST' })
         total,
         itemCount: insertedItems.length,
         paymentMethod: data.paymentMethod,
+        campoEntries: createdEntries.length,
       },
     })
 
@@ -219,12 +244,6 @@ export const createSale = createServerFn({ method: 'POST' })
     // ------------------------------------------------------------
     // RESPUESTA
     // ------------------------------------------------------------
-    //
-    // "entries: []" se mantiene por compatibilidad con el código
-    // de frontend que eventualmente pueda esperar esta propiedad.
-    //
-    // La venta NO crea ningún entry.
-    // ------------------------------------------------------------
 
     return {
       sale,
@@ -237,7 +256,7 @@ export const createSale = createServerFn({ method: 'POST' })
 
       permits: insertedPermits,
 
-      entries: [],
+      entries: createdEntries,
     }
   })
 
@@ -255,38 +274,43 @@ export const listSales = createServerFn({ method: 'GET' })
   .handler(async ({ data }) => {
     await requireUser()
 
-    const conditions = []
-
-    if (data.dateFrom) {
-      conditions.push(
-        gte(
-          sales.createdAt,
-          new Date(data.dateFrom + 'T00:00:00'),
-        ),
-      )
-    }
-
-    if (data.dateTo) {
-      conditions.push(
-        lte(
-          sales.createdAt,
-          new Date(data.dateTo + 'T23:59:59'),
-        ),
-      )
-    }
-
     const rows = await db
-      .select()
+      .select({
+        id: sales.id,
+        saleNumber: sales.saleNumber,
+        createdByUserId: sales.createdByUserId,
+        totalAmount: sales.totalAmount,
+        paymentMethod: sales.paymentMethod,
+        status: sales.status,
+        notes: sales.notes,
+        createdAt: sales.createdAt,
+      })
       .from(sales)
-      .where(
-        conditions.length
-          ? and(...conditions)
-          : undefined,
-      )
       .orderBy(desc(sales.createdAt))
-      .limit(200)
+      .limit(500)
 
-    return rows
+    const filtered = rows.filter((s) => {
+      const day = s.createdAt instanceof Date
+        ? s.createdAt.toISOString().slice(0, 10)
+        : String(s.createdAt).slice(0, 10)
+      if (data.dateFrom && day < data.dateFrom) return false
+      if (data.dateTo && day > data.dateTo) return false
+      return true
+    })
+
+    return filtered.slice(0, 200).map((s) => ({
+      id: s.id,
+      saleNumber: s.saleNumber,
+      createdByUserId: s.createdByUserId,
+      totalAmount: s.totalAmount,
+      paymentMethod: s.paymentMethod,
+      status: s.status,
+      notes: s.notes,
+      createdAt:
+        s.createdAt instanceof Date
+          ? s.createdAt.toISOString()
+          : String(s.createdAt),
+    }))
   })
 
 // ============================================================

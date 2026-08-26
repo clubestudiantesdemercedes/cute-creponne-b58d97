@@ -55,6 +55,7 @@ export const members = pgTable(
     personId: integer('person_id').notNull().references(() => people.id),
     memberNumber: text('member_number').notNull(),
     memberStatus: text('member_status').notNull().default('activo'), // activo | inactivo
+    category: text('category').notNull().default('general'), // general | deportista
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -132,7 +133,7 @@ export const prices = pgTable(
   {
     id: serial().primaryKey(),
     planId: integer('plan_id').notNull().references(() => plans.id),
-    conditionType: text('condition_type').notNull(), // socio | no_socio | convenio
+    conditionType: text('condition_type').notNull(), // socio | deportista | no_socio | convenio
     conventionId: integer('convention_id').references(() => conventions.id),
     amount: integer('amount').notNull(), // whole ARS pesos
     active: boolean('active').notNull().default(true),
@@ -159,7 +160,7 @@ export const saleItems = pgTable('sale_items', {
   id: serial().primaryKey(),
   saleId: integer('sale_id').notNull().references(() => sales.id),
   personId: integer('person_id').notNull().references(() => people.id),
-  conditionType: text('condition_type').notNull(), // socio | no_socio | convenio
+  conditionType: text('condition_type').notNull(), // socio | deportista | no_socio | convenio
   conventionId: integer('convention_id').references(() => conventions.id),
   planId: integer('plan_id').notNull().references(() => plans.id),
   unitPrice: integer('unit_price').notNull(),

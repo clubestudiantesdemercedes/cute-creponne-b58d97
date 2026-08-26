@@ -4,10 +4,56 @@ import { getDashboardStats } from '@/server/dashboard.functions'
 import { listExpiringPermits } from '@/server/permits.functions'
 import { formatARS, formatDateAR } from '@/lib/format'
 
+const EMPTY_STATS = {
+  personasHabilitadas: 0,
+  socios: 0,
+  noSocios: 0,
+  convenios: 0,
+  ventasHoy: 0,
+  ingresosHoy: 0,
+  recaudacionHoy: 0,
+}
+
+const EMPTY_EXPIRING = {
+  vencidos: [] as Array<{
+    permit: { id: number; endDate: string }
+    person: { firstName: string; lastName: string }
+    plan: { name: string }
+  }>,
+  hoy: [] as Array<{
+    permit: { id: number; endDate: string }
+    person: { firstName: string; lastName: string }
+    plan: { name: string }
+  }>,
+  en3dias: [] as Array<{
+    permit: { id: number; endDate: string }
+    person: { firstName: string; lastName: string }
+    plan: { name: string }
+  }>,
+  en7dias: [] as Array<{
+    permit: { id: number; endDate: string }
+    person: { firstName: string; lastName: string }
+    plan: { name: string }
+  }>,
+}
+
 export const Route = createFileRoute('/_app/')({
   loader: async () => {
-    const [stats, expiring] = await Promise.all([getDashboardStats(), listExpiringPermits()])
-    return { stats, expiring }
+    try {
+      const [stats, expiring] = await Promise.all([getDashboardStats(), listExpiringPermits()])
+      return {
+        stats: stats ?? EMPTY_STATS,
+        expiring: expiring ?? EMPTY_EXPIRING,
+        loadError: null as string | null,
+      }
+    } catch (err) {
+      console.error('Dashboard loader error:', err)
+      return {
+        stats: EMPTY_STATS,
+        expiring: EMPTY_EXPIRING,
+        loadError: err instanceof Error ? err.message : 'No se pudieron cargar los datos del panel.',
+      }
+    }
   },
   component: Dashboard,
 })
@@ -37,7 +83,10 @@ function Card({
 }
 
 function Dashboard() {
-  const { stats, expiring } = Route.useLoaderData()
+  const data = Route.useLoaderData()
+  const stats = data?.stats ?? EMPTY_STATS
+  const expiring = data?.expiring ?? EMPTY_EXPIRING
+  const loadError = data?.loadError ?? null
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -45,6 +94,17 @@ function Dashboard() {
         <h1 className="text-2xl font-bold text-slate-900">Temporada de pileta</h1>
         <p className="text-slate-500 text-sm">Resumen del natatorio del Club Atlético Estudiantes</p>
       </div>
+
+      {loadError && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">No se pudieron cargar todos los datos del panel.</p>
+          <p className="mt-1 text-amber-800">{loadError}</p>
+          <p className="mt-1 text-amber-700">
+            Revisá la consola del servidor (terminal) y la pestaña Network → respuesta de las peticiones{' '}
+            <code className="text-xs">_serverFn</code>.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3">
         <Link
@@ -62,12 +122,27 @@ function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card icon={Users} label="Personas habilitadas" value={String(stats.personasHabilitadas)} accent="bg-blue-800" />
+        <Card
+          icon={Users}
+          label="Personas habilitadas"
+          value={String(stats.personasHabilitadas)}
+          accent="bg-blue-800"
+        />
         <Card icon={DoorOpen} label="Ingresos hoy" value={String(stats.ingresosHoy)} accent="bg-emerald-600" />
         <Card icon={ShoppingCart} label="Ventas hoy" value={String(stats.ventasHoy)} accent="bg-amber-600" />
-        <Card icon={DollarSign} label="Recaudación hoy" value={formatARS(stats.recaudacionHoy)} accent="bg-red-700" />
+        <Card
+          icon={DollarSign}
+          label="Recaudación hoy"
+          value={formatARS(stats.recaudacionHoy)}
+          accent="bg-red-700"
+        />
         <Card icon={IdCard} label="Socios habilitados" value={String(stats.socios)} accent="bg-blue-700" />
-        <Card icon={Handshake} label="Convenios habilitados" value={String(stats.convenios)} accent="bg-violet-600" />
+        <Card
+          icon={Handshake}
+          label="Convenios habilitados"
+          value={String(stats.convenios)}
+          accent="bg-violet-600"
+        />
       </div>
 
       <div className="bg-white rounded-xl shadow-sm p-5">

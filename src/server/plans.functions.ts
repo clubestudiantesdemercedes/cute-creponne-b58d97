@@ -75,7 +75,7 @@ export const upsertPlan = createServerFn({ method: 'POST' })
 const PriceInput = z.object({
   id: z.number().optional(),
   planId: z.number(),
-  conditionType: z.enum(['socio', 'no_socio', 'convenio']),
+  conditionType: z.enum(['socio', 'deportista', 'no_socio', 'convenio']),
   conventionId: z.number().optional().nullable(),
   amount: z.number().int().nonnegative(),
 })

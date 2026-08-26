@@ -5,7 +5,7 @@ import { prices } from '../../db/schema'
 /** Resolves the price to charge a person with a given condition for a plan. */
 export async function resolvePrice(
   planId: number,
-  conditionType: 'socio' | 'no_socio' | 'convenio',
+  conditionType: 'socio' | 'deportista' | 'no_socio' | 'convenio',
   conventionId: number | null,
 ) {
   if (conditionType === 'convenio' && conventionId) {

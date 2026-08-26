@@ -109,8 +109,8 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
       },
       {
         name: 'Pase quincenal',
-        description: 'Acceso por 15 días',
-        durationValue: 15,
+        description: 'Acceso por 14 días',
+        durationValue: 14,
         durationUnit: 'dia',
         sortOrder: 3,
       },
