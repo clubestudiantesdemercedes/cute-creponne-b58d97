@@ -1,0 +1,21 @@
+{
+	"siteId": "bfff133a-002e-4323-a36c-43a354be50db",
+	"geolocation": {
+		"data": {
+			"city": "Mercedes",
+			"country": {
+				"code": "AR",
+				"name": "Argentina"
+			},
+			"subdivision": {
+				"code": "B",
+				"name": "Buenos Aires"
+			},
+			"timezone": "America/Argentina/Buenos_Aires",
+			"latitude": -34.6527,
+			"longitude": -59.4252,
+			"postalCode": "6600"
+		},
+		"timestamp": 1787633099469
+	}
+}
