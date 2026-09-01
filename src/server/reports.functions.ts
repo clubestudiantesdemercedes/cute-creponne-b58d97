@@ -20,7 +20,11 @@ function toCsv(headers: string[], rows: (string | number | null | undefined)[][]
     const s = v === null || v === undefined ? '' : String(v)
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
-  return [headers.map(esc).join(','), ...rows.map((r) => r.map(esc).join(','))].join('\n')
+  // BOM UTF-8 para que Excel (Windows) lea bien tildes y ñ
+  const body = [headers.map(esc).join(','), ...rows.map((r) => r.map(esc).join(','))].join(
+    '\n',
+  )
+  return '\uFEFF' + body
 }
 
 function toDateISO(value: unknown): string {
@@ -79,18 +83,49 @@ export const exportSalesCsv = createServerFn({ method: 'GET' })
   .inputValidator(DateRangeInput)
   .handler(async ({ data }) => {
     await requireUser()
-    const rows = await db.select().from(sales)
-    const filtered = rows.filter((s) =>
-      inDateRange(toDateISO(s.createdAt), data.dateFrom, data.dateTo),
+
+    const rows = await db
+      .select({
+        sale: sales,
+        item: saleItems,
+        person: people,
+        plan: plans,
+      })
+      .from(saleItems)
+      .innerJoin(sales, eq(saleItems.saleId, sales.id))
+      .innerJoin(people, eq(saleItems.personId, people.id))
+      .innerJoin(plans, eq(saleItems.planId, plans.id))
+
+    const filtered = rows.filter((r) =>
+      inDateRange(toDateISO(r.sale.createdAt), data?.dateFrom, data?.dateTo),
     )
+
     return toCsv(
-      ['numero_venta', 'fecha', 'total', 'metodo_pago', 'estado'],
-      filtered.map((s) => [
-        s.saleNumber,
-        toISOString(s.createdAt),
-        s.totalAmount,
-        s.paymentMethod,
-        s.status,
+      [
+        'numero_venta',
+        'fecha',
+        'metodo_pago',
+        'estado_venta',
+        'total_venta',
+        'dni',
+        'apellido',
+        'nombre',
+        'tipo_condicion',
+        'plan',
+        'importe_item',
+      ],
+      filtered.map((r) => [
+        r.sale.saleNumber,
+        toISOString(r.sale.createdAt),
+        r.sale.paymentMethod,
+        r.sale.status,
+        r.sale.totalAmount,
+        r.person.dni,
+        r.person.lastName,
+        r.person.firstName,
+        r.item.conditionType,
+        r.plan.name,
+        r.item.unitPrice,
       ]),
     )
   })

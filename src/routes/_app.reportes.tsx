@@ -32,7 +32,7 @@ export const Route = createFileRoute('/_app/reportes')({
 })
 
 function downloadCsv(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;',  })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -253,7 +253,7 @@ function ReportesPage() {
               key={e.file}
               onClick={async () => {
                 const content = await e.fn()
-                const suffix = e.filtered ? `_${appliedFrom}_${appliedTo}` : ''
+                const suffix = e.filtered ? `_${dateFrom}_${dateTo}` : ''
                 downloadCsv(e.file.replace('.csv', `${suffix}.csv`), content)
               }}
               className="flex items-center gap-1.5 text-xs font-semibold border border-slate-300 px-3 py-2 rounded-lg hover:bg-slate-50"
