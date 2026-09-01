@@ -9,7 +9,7 @@ Aplicación web para gestionar la temporada de pileta del Club Atlético Estudia
 - **Control de ingreso**: pantalla mobile-first para escanear el QR (usando la API `BarcodeDetector` del navegador) o buscar por DNI, con aviso de ingresos duplicados y bloqueo de permisos vencidos.
 - **Socios**: importación masiva desde CSV/Excel (con vista previa de nuevos/actualizados/errores) y búsqueda por número de socio o DNI.
 - **Convenios**: administración de convenios con empresas, sindicatos o instituciones, y sus beneficiarios y tarifas propias.
-- **Planes y tarifas**: configuración de planes (diario, semanal, quincenal, mensual, temporada) y tarifas por tipo de condición, sin precios fijos en el código.
+- **Planes y tarifas**: configuración de planes (diario, semanal, mensual, temporada) y tarifas por tipo de condición, sin precios fijos en el código.
 - **Reportes y exportación**: ventas, ingresos, convenios y vencimientos de permisos, todos exportables a CSV.
 - **Cierre de caja**: totales diarios por método de pago, con cierre definitivo habilitado solo para administradores.
 - **Roles**: administrador, encargado de pileta, control de ingreso y consulta (solo lectura).

@@ -9,6 +9,7 @@ import {
   permits,
   plans,
   people,
+  members,
   auditLogs,
   entries,
 } from '../../db/schema'
@@ -23,6 +24,7 @@ const SaleItemInput = z.object({
   conditionType: z.enum(['socio', 'deportista', 'no_socio', 'convenio']),
   conventionId: z.number().optional().nullable(),
   planId: z.number(),
+  isJubilado: z.boolean().optional().default(false),
 })
 
 const CreateSaleInput = z.object({
@@ -36,6 +38,87 @@ const CreateSaleInput = z.object({
   ]),
   notes: z.string().optional().nullable(),
 })
+
+function ageYearsFromBirthDate(
+  birthDate: string | Date | null | undefined,
+): number | null {
+  if (!birthDate) return null
+  const raw =
+    typeof birthDate === 'string' ? birthDate : birthDate.toISOString()
+  const birth = new Date(raw.includes('T') ? raw : raw + 'T00:00:00')
+  if (Number.isNaN(birth.getTime())) return null
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age -= 1
+  return age
+}
+
+type PriceCondition = 'socio' | 'deportista' | 'no_socio' | 'convenio'
+
+async function resolveSaleUnitPrice(item: {
+  personId: number
+  conditionType: PriceCondition
+  conventionId: number | null
+  planId: number
+  isJubilado?: boolean
+}): Promise<{ conditionType: PriceCondition; unitPrice: number }> {
+  const [person] = await db
+    .select()
+    .from(people)
+    .where(eq(people.id, item.personId))
+
+  if (!person) {
+    throw new Error('Persona inválida en la venta.')
+  }
+
+  const [member] = await db
+    .select()
+    .from(members)
+    .where(eq(members.personId, item.personId))
+
+  const age = ageYearsFromBirthDate(person.birthDate)
+  const category = (member?.category as string | undefined) ?? 'general'
+
+  let conditionType: PriceCondition = item.conditionType
+
+  if (item.conditionType === 'convenio') {
+    conditionType = 'convenio'
+  } else if (item.isJubilado) {
+    conditionType = 'deportista'
+  } else if (member) {
+    if (
+      category === 'deportista' ||
+      category === 'menor' ||
+      (age != null && age <= 12)
+    ) {
+      conditionType = 'deportista'
+    } else {
+      conditionType = 'socio'
+    }
+  } else {
+    conditionType = 'no_socio'
+  }
+
+  let unitPrice = await resolvePrice(
+    item.planId,
+    conditionType,
+    conditionType === 'convenio' ? item.conventionId : null,
+  )
+
+  // No socio ≤ 12 años (y no jubilado): 50%
+  if (
+    !member &&
+    !item.isJubilado &&
+    conditionType === 'no_socio' &&
+    age != null &&
+    age <= 12
+  ) {
+    unitPrice = Math.round(unitPrice / 2)
+  }
+
+  return { conditionType, unitPrice }
+}
 
 export const createSale = createServerFn({ method: 'POST' })
   .inputValidator(CreateSaleInput)
@@ -57,9 +140,9 @@ export const createSale = createServerFn({ method: 'POST' })
 
     let total = 0
 
-    const resolvedItems: Array<{
+        const resolvedItems: Array<{
       personId: number
-      conditionType: 'socio' | 'no_socio' | 'convenio'
+      conditionType: PriceCondition
       conventionId: number | null
       planId: number
       unitPrice: number
@@ -72,17 +155,19 @@ export const createSale = createServerFn({ method: 'POST' })
         throw new Error('Plan inválido.')
       }
 
-      const unitPrice = await resolvePrice(
-        item.planId,
-        item.conditionType,
-        item.conventionId ?? null,
-      )
+      const { conditionType, unitPrice } = await resolveSaleUnitPrice({
+        personId: item.personId,
+        conditionType: item.conditionType,
+        conventionId: item.conventionId ?? null,
+        planId: item.planId,
+        isJubilado: item.isJubilado ?? false,
+      })
 
       total += unitPrice
 
       resolvedItems.push({
         personId: item.personId,
-        conditionType: item.conditionType,
+        conditionType,
         conventionId: item.conventionId ?? null,
         planId: item.planId,
         unitPrice,

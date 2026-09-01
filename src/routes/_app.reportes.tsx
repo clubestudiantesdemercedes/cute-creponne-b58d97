@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Download, Search } from 'lucide-react'
-import { listSales } from '@/server/sales.functions'
+import { listSales, getSaleDetail } from '@/server/sales.functions'
 import { listEntries } from '@/server/entries.functions'
 import { listExpiringPermits } from '@/server/permits.functions'
 import {
@@ -55,15 +55,44 @@ function ReportesPage() {
   const [tab, setTab] = useState<Tab>('ventas')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [appliedFrom, setAppliedFrom] = useState(initial.initialFrom)
-  const [appliedTo, setAppliedTo] = useState(initial.initialTo)
+  const [openSaleId, setOpenSaleId] = useState<number | null>(null)
+  const [saleDetail, setSaleDetail] = useState<Awaited<
+    ReturnType<typeof getSaleDetail>
+  > | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
-  const periodData = { dateFrom: appliedFrom, dateTo: appliedTo }
-
+  const periodData = { dateFrom, dateTo }
   const periodLabel =
-    appliedFrom === appliedTo
-      ? formatDateAR(appliedFrom)
-      : `${formatDateAR(appliedFrom)} – ${formatDateAR(appliedTo)}`
+    dateFrom === dateTo
+      ? formatDateAR(dateFrom)
+      : `${formatDateAR(dateFrom)} – ${formatDateAR(dateTo)}`
+
+  async function toggleSaleDetail(saleId: number) {
+    if (openSaleId === saleId) {
+      setOpenSaleId(null)
+      setSaleDetail(null)
+      return
+    }
+    setOpenSaleId(saleId)
+    setSaleDetail(null)
+    setDetailLoading(true)
+    try {
+      const detail = await getSaleDetail({ data: { saleId } })
+      setSaleDetail(detail)
+    } catch {
+      setSaleDetail(null)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  function labelCondition(c: string) {
+    if (c === 'socio') return 'Socio'
+    if (c === 'deportista') return 'Deportista / reducida'
+    if (c === 'no_socio') return 'No socio'
+    if (c === 'convenio') return 'Convenio'
+    return c
+  }
 
   const EXPORTS: {
     label: string
@@ -150,8 +179,6 @@ function ReportesPage() {
         en7dias: filterBucket(exp.en7dias),
       })
       setConventionsReport(conv)
-      setAppliedFrom(dateFrom)
-      setAppliedTo(dateTo)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los reportes.')
     } finally {
@@ -254,7 +281,11 @@ function ReportesPage() {
 
       {tab === 'ventas' && (
         <div className="bg-white rounded-xl shadow-sm p-5">
-          <h2 className="font-semibold mb-3">Ventas — {periodLabel}</h2>
+          <h2 className="font-semibold mb-1">Ventas — {periodLabel}</h2>
+          <p className="text-xs text-slate-500 mb-3">
+            Hacé clic en una venta para ver las personas, planes y códigos de
+            permiso.
+          </p>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-slate-500 border-b border-slate-200">
@@ -262,20 +293,87 @@ function ReportesPage() {
                 <th className="py-2">Hora</th>
                 <th className="py-2">Total</th>
                 <th className="py-2">Método</th>
+                <th className="py-2">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sales.map((s) => (
-                <tr key={s.id}>
-                  <td className="py-2">{s.saleNumber}</td>
-                  <td className="py-2">{formatDateTimeAR(s.createdAt)}</td>
-                  <td className="py-2">{formatARS(s.totalAmount)}</td>
-                  <td className="py-2 capitalize">{s.paymentMethod}</td>
-                </tr>
+                <>
+                  <tr
+                    key={s.id}
+                    onClick={() => void toggleSaleDetail(s.id)}
+                    className="cursor-pointer hover:bg-slate-50"
+                  >
+                    <td className="py-2 font-medium text-blue-900">
+                      {s.saleNumber}
+                      <span className="ml-1 text-slate-400 font-normal">
+                        {openSaleId === s.id ? '▼' : '▶'}
+                      </span>
+                    </td>
+                    <td className="py-2">{formatDateTimeAR(s.createdAt)}</td>
+                    <td className="py-2">{formatARS(s.totalAmount)}</td>
+                    <td className="py-2 capitalize">{s.paymentMethod}</td>
+                    <td className="py-2 capitalize">{s.status}</td>
+                  </tr>
+                  {openSaleId === s.id && (
+                    <tr key={`${s.id}-detail`}>
+                      <td colSpan={5} className="bg-slate-50 px-3 py-3">
+                        {detailLoading && (
+                          <p className="text-slate-500 text-sm">Cargando detalle...</p>
+                        )}
+                        {!detailLoading && saleDetail && saleDetail.sale.id === s.id && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-slate-600 uppercase">
+                              Personas en esta venta
+                            </p>
+                            <ul className="space-y-2">
+                              {saleDetail.items.map((row) => (
+                                <li
+                                  key={row.item.id}
+                                  className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                                >
+                                  <p className="font-medium">
+                                    {row.person.lastName}, {row.person.firstName}
+                                    <span className="text-slate-500 font-normal">
+                                      {' '}
+                                      — DNI {row.person.dni}
+                                    </span>
+                                  </p>
+                                  <p className="text-xs text-slate-600 mt-0.5">
+                                    {row.plan.name} · {labelCondition(row.item.conditionType)} ·{' '}
+                                    {formatARS(row.item.unitPrice)}
+                                  </p>
+                                  {row.permit && (
+                                    <p className="text-xs text-blue-800 mt-0.5 font-mono">
+                                      Permiso: {row.permit.code}
+                                      {row.permit.endDate
+                                        ? ` (vence ${formatDateAR(row.permit.endDate)})`
+                                        : ''}
+                                    </p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                            {saleDetail.items.length === 0 && (
+                              <p className="text-slate-400 text-sm">
+                                Esta venta no tiene ítems.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {!detailLoading && !saleDetail && (
+                          <p className="text-red-600 text-sm">
+                            No se pudo cargar el detalle.
+                          </p>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
               {sales.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-4 text-slate-400 text-center">
+                  <td colSpan={5} className="py-4 text-slate-400 text-center">
                     Sin ventas en el período.
                   </td>
                 </tr>

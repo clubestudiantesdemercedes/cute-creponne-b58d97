@@ -15,7 +15,7 @@ const ImportRow = z.object({
   email: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   status: z.enum(['activo', 'inactivo']).default('activo'),
-  category: z.enum(['general', 'deportista']).default('general'),
+  category: z.enum(['general', 'deportista', 'menor']).default('general'),
 })
 export type ImportRowT = z.infer<typeof ImportRow>
 
@@ -140,13 +140,13 @@ export const previewMembersImport = createServerFn({ method: 'POST' })
       } else {
         obj.status = 'activo'
       }
-      if (obj.category) {
-        const c = slug(String(obj.category))
-        obj.category =
-          c.includes('deport') || c === 'dep' ? 'deportista' : 'general'
-      } else {
-        obj.category = 'general'
-      }
+        if (c.includes('deport') || c === 'dep') {
+          obj.category = 'deportista'
+        } else if (c.includes('menor') || c === 'nino' || c === 'nina') {
+          obj.category = 'menor'
+        } else {
+          obj.category = 'general'
+        }
 
       const action =
         obj.memberNumber && existingByNumber.has(obj.memberNumber)
@@ -264,7 +264,7 @@ const UpsertMemberInput = z.object({
   email: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   memberStatus: z.enum(['activo', 'inactivo']).default('activo'),
-  category: z.enum(['general', 'deportista']).default('general'),
+  category: z.enum(['general', 'deportista', 'menor']).default('general'),
 })
 
 export const upsertMember = createServerFn({ method: 'POST' })

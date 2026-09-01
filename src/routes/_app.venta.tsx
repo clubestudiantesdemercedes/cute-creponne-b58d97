@@ -20,6 +20,8 @@ import {
   createConventionBeneficiary,
 } from '@/server/people.functions'
 
+import { upsertMember } from '@/server/members.functions'
+
 import { listPlans, listAllPrices } from '@/server/plans.functions'
 import { createSale } from '@/server/sales.functions'
 import { formatARS, formatDateAR } from '@/lib/format'
@@ -68,6 +70,7 @@ type CartItem = {
   planId: number
   planName: string
   price: number
+  isJubilado?: boolean
 }
 
 type Step =
@@ -212,6 +215,7 @@ function priceForPerson(
         planId,
         planName: plan.name,
         price,
+        isJubilado: !!person.isJubilado,
       },
     ])
 
@@ -575,67 +579,314 @@ function BuscarSocio({
   onFound: (person: PersonData) => void
 }) {
   const [query, setQuery] = useState('')
-
   const [results, setResults] = useState<
     Awaited<ReturnType<typeof searchMembers>>
   >([])
-
   const [loading, setLoading] = useState(false)
-
   const [selected, setSelected] = useState<
     (typeof results)[number] | null
   >(null)
-
   const [override, setOverride] = useState(false)
 
-  async function doSearch(e: React.FormEvent) {
-    e.preventDefault()
+  const [mode, setMode] = useState<'buscar' | 'crear'>('buscar')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
+  const [memberNumber, setMemberNumber] = useState('')
+  const [category, setCategory] = useState<
+    'general' | 'deportista' | 'menor'
+  >('general')
+  const [personForm, setPersonForm] = useState({
+    dni: '',
+    firstName: '',
+    lastName: '',
+    birthDate: '',
+    phone: '',
+    email: '',
+    address: '',
+  })
+
+  async function doSearch(e?: React.FormEvent) {
+    e?.preventDefault()
     setLoading(true)
     setSelected(null)
-
+    setOverride(false)
     try {
       const rows = await searchMembers({
-        data: { query },
+        data: { query: query.trim() },
       })
-
       setResults(rows)
     } finally {
       setLoading(false)
     }
   }
 
+  function personFromMember(
+    row: (typeof results)[number],
+  ): PersonData {
+    const cat = (row.member as { category?: string }).category
+    const age = ageYears(row.person.birthDate ?? '')
+    const conditionType: ConditionType =
+      cat === 'deportista' ||
+      cat === 'menor' ||
+      (age != null && age <= 12)
+        ? 'deportista'
+        : 'socio'
+
+    return {
+      personId: row.person.id,
+      fullName: `${row.person.firstName} ${row.person.lastName}`,
+      dni: row.person.dni,
+      firstName: row.person.firstName,
+      lastName: row.person.lastName,
+      birthDate: row.person.birthDate ?? '',
+      phone: row.person.phone ?? '',
+      email: row.person.email ?? '',
+      address: row.person.address ?? '',
+      conditionType,
+      conventionId: null,
+      isJubilado: false,
+    }
+  }
+
+  async function createNewMember(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const result = await upsertMember({
+        data: {
+          memberNumber: memberNumber.trim(),
+          dni: personForm.dni.trim(),
+          firstName: personForm.firstName.trim(),
+          lastName: personForm.lastName.trim(),
+          birthDate: personForm.birthDate || null,
+          phone: personForm.phone.trim() || null,
+          email: personForm.email.trim() || null,
+          address: personForm.address.trim() || null,
+          memberStatus: 'activo',
+          category,
+        },
+      })
+
+      const age = ageYears(result.person.birthDate ?? '')
+      const conditionType: ConditionType =
+        category === 'deportista' ||
+        category === 'menor' ||
+        (age != null && age <= 12)
+          ? 'deportista'
+          : 'socio'
+
+      onFound({
+        personId: result.person.id,
+        fullName: `${result.person.firstName} ${result.person.lastName}`,
+        dni: result.person.dni,
+        firstName: result.person.firstName,
+        lastName: result.person.lastName,
+        birthDate: result.person.birthDate ?? '',
+        phone: result.person.phone ?? '',
+        email: result.person.email ?? '',
+        address: result.person.address ?? '',
+        conditionType,
+        conventionId: null,
+        isJubilado: false,
+      })
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo registrar el socio.',
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ---------- Alta de socio nuevo ----------
+  if (mode === 'crear') {
+    return (
+      <Card>
+        <BackLink
+          onBack={() => {
+            setMode('buscar')
+            setError(null)
+          }}
+        />
+
+        <h2 className="font-bold text-lg mb-1">
+          Registrar socio nuevo
+        </h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Completá número de socio, categoría y datos personales.
+          Luego seguís con la venta.
+        </p>
+
+        {error && (
+          <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={createNewMember} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="text-sm">
+              <span className="text-slate-600">N° de socio *</span>
+              <input
+                required
+                value={memberNumber}
+                onChange={(e) => setMemberNumber(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-600">Categoría *</span>
+              <select
+                value={category}
+                onChange={(e) =>
+                  setCategory(
+                    e.target.value as 'general' | 'deportista' | 'menor',
+                  )
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              >
+                <option value="general">Socio general</option>
+                <option value="deportista">Deportista</option>
+                <option value="menor">Menor (socio)</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-600">DNI *</span>
+              <input
+                required
+                value={personForm.dni}
+                onChange={(e) =>
+                  setPersonForm({
+                    ...personForm,
+                    dni: e.target.value.replace(/[^\d]/g, ''),
+                  })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-600">Fecha de nacimiento</span>
+              <input
+                type="date"
+                value={personForm.birthDate}
+                onChange={(e) =>
+                  setPersonForm({
+                    ...personForm,
+                    birthDate: e.target.value,
+                  })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-600">Nombre *</span>
+              <input
+                required
+                value={personForm.firstName}
+                onChange={(e) =>
+                  setPersonForm({
+                    ...personForm,
+                    firstName: e.target.value,
+                  })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-600">Apellido *</span>
+              <input
+                required
+                value={personForm.lastName}
+                onChange={(e) =>
+                  setPersonForm({
+                    ...personForm,
+                    lastName: e.target.value,
+                  })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-600">Teléfono</span>
+              <input
+                value={personForm.phone}
+                onChange={(e) =>
+                  setPersonForm({
+                    ...personForm,
+                    phone: e.target.value,
+                  })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-600">Email</span>
+              <input
+                type="email"
+                value={personForm.email}
+                onChange={(e) =>
+                  setPersonForm({
+                    ...personForm,
+                    email: e.target.value,
+                  })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="text-sm sm:col-span-2">
+              <span className="text-slate-600">Domicilio</span>
+              <input
+                value={personForm.address}
+                onChange={(e) =>
+                  setPersonForm({
+                    ...personForm,
+                    address: e.target.value,
+                  })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full bg-emerald-600 disabled:opacity-50 text-white font-semibold py-3 rounded-lg"
+          >
+            {saving ? 'Guardando...' : 'Registrar socio y continuar'}
+          </button>
+        </form>
+      </Card>
+    )
+  }
+
+  // ---------- Socio ya elegido ----------
   if (selected) {
-    const active =
-      selected.member.memberStatus === 'activo'
+    const active = selected.member.memberStatus === 'activo'
 
     return (
       <Card>
         <BackLink
-          onBack={() => setSelected(null)}
+          onBack={() => {
+            setSelected(null)
+            setOverride(false)
+          }}
         />
 
-        <h2 className="font-bold text-lg mb-1">
-          Buscar socio
-        </h2>
+        <h2 className="font-bold text-lg mb-3">Confirmar socio</h2>
 
-        <div className="rounded-lg border border-slate-200 p-4 mt-3">
+        <div className="bg-slate-50 rounded-lg p-4">
           <p className="font-semibold text-lg">
-            {selected.person.firstName}{' '}
-            {selected.person.lastName}
+            {selected.person.firstName} {selected.person.lastName}
           </p>
-
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-600 mt-1">
             Socio N° {selected.member.memberNumber} — DNI{' '}
             {selected.person.dni}
           </p>
-
-          {selected.person.phone && (
-            <p className="text-sm text-slate-500">
-              Tel: {selected.person.phone}
-            </p>
-          )}
-
           <p
             className={`mt-2 inline-block px-3 py-1 rounded-full text-xs font-bold ${
               active
@@ -643,56 +894,31 @@ function BuscarSocio({
                 : 'bg-red-100 text-red-700'
             }`}
           >
-            {active
-              ? 'SOCIO ACTIVO'
-              : 'SOCIO INACTIVO'}
+            {active ? 'SOCIO ACTIVO' : 'SOCIO INACTIVO'}
           </p>
         </div>
 
         {!active && (
           <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
             <p className="font-medium mb-2">
-              Este socio figura inactivo. No se le puede
-              aplicar la tarifa de socio sin autorización
-              de un administrador.
+              Este socio figura inactivo. No se le puede aplicar la
+              tarifa de socio sin autorización de un administrador.
             </p>
-
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={override}
-                onChange={(e) =>
-                  setOverride(e.target.checked)
-                }
+                onChange={(e) => setOverride(e.target.checked)}
               />
-              Un administrador autorizó continuar como
-              socio
+              Un administrador autorizó continuar como socio
             </label>
           </div>
         )}
 
         <button
+          type="button"
           disabled={!active && !override}
-          onClick={() =>
-            onFound({
-              personId: selected.person.id,
-              fullName: `${selected.person.firstName} ${selected.person.lastName}`,
-              dni: selected.person.dni,
-              firstName: selected.person.firstName,
-              lastName: selected.person.lastName,
-              birthDate:
-                selected.person.birthDate ?? '',
-              phone: selected.person.phone ?? '',
-              email: selected.person.email ?? '',
-              address: selected.person.address ?? '',
-              conditionType:
-                (selected.member as { category?: string }).category ===
-                'deportista'
-                  ? 'deportista'
-                  : 'socio',
-              conventionId: null,
-            })
-          }
+          onClick={() => onFound(personFromMember(selected))}
           className="mt-4 w-full bg-emerald-600 disabled:opacity-40 text-white font-semibold py-3 rounded-lg"
         >
           Continuar
@@ -701,31 +927,25 @@ function BuscarSocio({
     )
   }
 
+  // ---------- Búsqueda ----------
   return (
     <Card>
-      <BackLink
-        onBack={onBack}
-      />
+      <BackLink onBack={onBack} />
 
-      <h2 className="font-bold text-lg mb-3">
-        Buscar socio
-      </h2>
+      <h2 className="font-bold text-lg mb-3">Buscar socio</h2>
 
-      <form
-        onSubmit={doSearch}
-        className="flex gap-2"
-      >
+      <form onSubmit={doSearch} className="flex gap-2">
         <input
           className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5"
           placeholder="N° socio, DNI, nombre o apellido"
           value={query}
-          onChange={(e) =>
-            setQuery(e.target.value)
-          }
+          onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
-
-        <button className="bg-blue-900 text-white px-4 rounded-lg flex items-center gap-1.5 font-semibold">
+        <button
+          type="submit"
+          className="bg-blue-900 text-white px-4 rounded-lg flex items-center gap-1.5 font-semibold"
+        >
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
@@ -735,24 +955,42 @@ function BuscarSocio({
         </button>
       </form>
 
+      <button
+        type="button"
+        onClick={() => {
+          setError(null)
+          setMemberNumber('')
+          setCategory('general')
+          setPersonForm({
+            dni: query.replace(/\D/g, '') || '',
+            firstName: '',
+            lastName: '',
+            birthDate: '',
+            phone: '',
+            email: '',
+            address: '',
+          })
+          setMode('crear')
+        }}
+        className="mt-3 text-sm text-emerald-700 font-semibold underline"
+      >
+        + Registrar socio nuevo
+      </button>
+
       <ul className="mt-4 divide-y divide-slate-100">
         {results.map((r) => (
           <li key={r.member.id}>
             <button
+              type="button"
               onClick={() => setSelected(r)}
               className="w-full text-left py-3 hover:bg-slate-50 px-1 rounded"
             >
               <p className="font-medium">
-                {r.person.firstName}{' '}
-                {r.person.lastName}
+                {r.person.firstName} {r.person.lastName}
               </p>
-
               <p className="text-xs text-slate-500">
-                Socio N° {r.member.memberNumber} — DNI{' '}
-                {r.person.dni} —{' '}
-                {r.member.memberStatus === 'activo'
-                  ? 'Activo'
-                  : 'Inactivo'}
+                Socio N° {r.member.memberNumber} — DNI {r.person.dni} —{' '}
+                {r.member.memberStatus === 'activo' ? 'Activo' : 'Inactivo'}
               </p>
             </button>
           </li>
@@ -760,7 +998,14 @@ function BuscarSocio({
 
         {results.length === 0 && !loading && (
           <li className="text-slate-400 text-sm py-3">
-            No hay resultados.
+            No hay resultados.{' '}
+            <button
+              type="button"
+              onClick={() => setMode('crear')}
+              className="text-emerald-700 font-semibold underline"
+            >
+              Registrar socio nuevo
+            </button>
           </li>
         )}
       </ul>
@@ -947,43 +1192,29 @@ function BuscarNoSocio({
   onFound: (person: PersonData) => void
 }) {
   const [query, setQuery] = useState('')
-
   const [results, setResults] = useState<
     Awaited<ReturnType<typeof searchNonMembers>>
   >([])
-
   const [loading, setLoading] = useState(false)
-
-  const [selected, setSelected] = useState<
-    (typeof results)[number] | null
-  >(null)
+  const [mode, setMode] = useState<'buscar' | 'crear'>('buscar')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function doSearch(e?: React.FormEvent) {
     e?.preventDefault()
-
     setLoading(true)
-    setSelected(null)
-
     try {
       const rows = await searchNonMembers({
-        data: {
-          query: query.trim(),
-        },
+        data: { query: query.trim() },
       })
-
       setResults(rows)
     } finally {
       setLoading(false)
     }
   }
 
-  function selectPerson(
-    row: (typeof results)[number],
-  ) {
+  function selectPerson(row: (typeof results)[number]) {
     const person = row.person
-
-    setSelected(row)
-
     onFound({
       personId: person.id,
       fullName: `${person.firstName} ${person.lastName}`,
@@ -996,37 +1227,100 @@ function BuscarNoSocio({
       address: person.address ?? '',
       conditionType: 'no_socio',
       conventionId: null,
+      isJubilado: false,
     })
+  }
+
+  async function createNew(data: PersonFormData) {
+    setSaving(true)
+    setError(null)
+    try {
+      const result = await createOrUpdatePerson({
+        data: {
+          dni: data.dni.trim(),
+          firstName: data.firstName.trim(),
+          lastName: data.lastName.trim(),
+          birthDate: data.birthDate || null,
+          phone: data.phone.trim() || null,
+          email: data.email.trim() || null,
+          address: data.address.trim() || null,
+        },
+      })
+
+      const p = result.person
+      onFound({
+        personId: p.id,
+        fullName: `${p.firstName} ${p.lastName}`,
+        dni: p.dni,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        birthDate: p.birthDate ?? '',
+        phone: p.phone ?? '',
+        email: p.email ?? '',
+        address: p.address ?? '',
+        conditionType: 'no_socio',
+        conventionId: null,
+        isJubilado: false,
+      })
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'No se pudo cargar la persona.',
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (mode === 'crear') {
+    return (
+      <Card>
+        <BackLink onBack={() => setMode('buscar')} />
+
+        <h2 className="font-bold text-lg mb-1">
+          Cargar persona nueva (no socio)
+        </h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Completá los datos y seguí con la venta. La fecha de
+          nacimiento es importante si es menor (descuento 50%).
+        </p>
+
+        {error && (
+          <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+            {error}
+          </div>
+        )}
+
+        <PersonForm
+          initial={{
+            dni: query.replace(/\D/g, '') || '',
+          }}
+          submitLabel={saving ? 'Guardando...' : 'Guardar y continuar'}
+          onSubmit={createNew}
+        />
+      </Card>
+    )
   }
 
   return (
     <Card>
       <BackLink onBack={onBack} />
 
-      <h2 className="font-bold text-lg mb-1">
-        Buscar no socio
-      </h2>
-
+      <h2 className="font-bold text-lg mb-1">Buscar no socio</h2>
       <p className="text-sm text-slate-500 mb-3">
-        Podés buscar por DNI, nombre o apellido.
-        También podés dejar vacío para ver todas las
-        personas no socias.
+        Buscá por DNI, nombre o apellido. Si no está cargado, podés
+        darlo de alta acá mismo.
       </p>
 
-      <form
-        onSubmit={doSearch}
-        className="flex gap-2"
-      >
+      <form onSubmit={doSearch} className="flex gap-2">
         <input
           className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5"
           placeholder="DNI, nombre o apellido"
           value={query}
-          onChange={(e) =>
-            setQuery(e.target.value)
-          }
+          onChange={(e) => setQuery(e.target.value)}
           autoFocus
         />
-
         <button
           type="submit"
           className="bg-blue-900 text-white px-4 rounded-lg flex items-center gap-1.5 font-semibold"
@@ -1040,33 +1334,44 @@ function BuscarNoSocio({
         </button>
       </form>
 
-      <button
-        type="button"
-        onClick={() => {
-          setQuery('')
-          void doSearch()
-        }}
-        className="mt-2 text-sm text-blue-800 font-semibold underline"
-      >
-        Ver todas las personas no socias
-      </button>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setQuery('')
+            void doSearch()
+          }}
+          className="text-sm text-blue-800 font-semibold underline"
+        >
+          Ver todas las personas no socias
+        </button>
+        <span className="text-slate-300">|</span>
+        <button
+          type="button"
+          onClick={() => {
+            setError(null)
+            setMode('crear')
+          }}
+          className="text-sm text-emerald-700 font-semibold underline"
+        >
+          + Cargar persona nueva
+        </button>
+      </div>
 
       <ul className="mt-4 divide-y divide-slate-100">
         {results.map((r) => (
           <li key={r.person.id}>
             <button
+              type="button"
               onClick={() => selectPerson(r)}
               className="w-full text-left py-3 hover:bg-slate-50 px-1 rounded"
             >
               <p className="font-medium">
-                {r.person.lastName},{' '}
-                {r.person.firstName}
+                {r.person.lastName}, {r.person.firstName}
               </p>
-
               <p className="text-xs text-slate-500">
                 DNI {r.person.dni}
               </p>
-
               {r.person.phone && (
                 <p className="text-xs text-slate-500">
                   Tel: {r.person.phone}
@@ -1078,7 +1383,14 @@ function BuscarNoSocio({
 
         {results.length === 0 && !loading && (
           <li className="text-slate-400 text-sm py-3">
-            No hay resultados.
+            No hay resultados.{' '}
+            <button
+              type="button"
+              onClick={() => setMode('crear')}
+              className="text-emerald-700 font-semibold underline"
+            >
+              Cargar persona nueva
+            </button>
           </li>
         )}
       </ul>
@@ -1610,6 +1922,7 @@ function Carrito({
             conditionType: i.conditionType,
             conventionId: i.conventionId,
             planId: i.planId,
+            isJubilado: !!i.isJubilado,
           })),
           paymentMethod: method as any,
         },
