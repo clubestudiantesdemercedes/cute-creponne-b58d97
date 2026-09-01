@@ -55,7 +55,7 @@ export const members = pgTable(
     personId: integer('person_id').notNull().references(() => people.id),
     memberNumber: text('member_number').notNull(),
     memberStatus: text('member_status').notNull().default('activo'), // activo | inactivo
-    category: text('category').notNull().default('general'), // general | deportista
+    category: text('category').notNull().default('general'), // general | deportista | menor
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
