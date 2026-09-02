@@ -90,7 +90,7 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
   const seasonStart = `${new Date().getFullYear()}-12-01`
   const seasonEnd = `${new Date().getFullYear() + 1}-02-28`
 
-  const [diario, semanal, quincenal, mensual, temporada] = await db
+  const [diario, semanal, mensual, temporada] = await db
     .insert(plans)
     .values([
       {
@@ -108,18 +108,11 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
         sortOrder: 2,
       },
       {
-        name: 'Pase quincenal',
-        description: 'Acceso por 14 días',
-        durationValue: 14,
-        durationUnit: 'dia',
-        sortOrder: 3,
-      },
-      {
         name: 'Pase mensual',
         description: 'Acceso por 30 días',
         durationValue: 30,
         durationUnit: 'dia',
-        sortOrder: 4,
+        sortOrder: 3,
       },
       {
         name: 'Pase de temporada',
@@ -128,7 +121,7 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
         durationUnit: 'temporada',
         seasonStart,
         seasonEnd,
-        sortOrder: 5,
+        sortOrder: 4,
       },
     ])
     .returning()
@@ -174,10 +167,6 @@ export const seedDemoData = createServerFn({ method: 'POST' }).handler(async () 
     { planId: semanal.id, conditionType: 'socio', amount: 35000 },
     { planId: semanal.id, conditionType: 'no_socio', amount: 55000 },
     { planId: semanal.id, conditionType: 'convenio', amount: 35000 },
-
-    { planId: quincenal.id, conditionType: 'socio', amount: 60000 },
-    { planId: quincenal.id, conditionType: 'no_socio', amount: 90000 },
-    { planId: quincenal.id, conditionType: 'convenio', amount: 60000 },
 
     { planId: mensual.id, conditionType: 'socio', amount: 30000 },
     { planId: mensual.id, conditionType: 'no_socio', amount: 50000 },

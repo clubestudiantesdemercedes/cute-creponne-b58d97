@@ -247,27 +247,22 @@ export const registerEntry = createServerFn({
       // Evitar duplicados
       // --------------------------------------------------------
 
-      const last = await lastEntryFor(
-        person.id,
-        'campo_deportes',
-      )
+        const lastDay = String(last.occurredAt).slice(0, 10)
+        const todayDay = new Date().toISOString().slice(0, 10)
 
-      if (last && !data.force) {
-        const minutesAgo =
-          (Date.now() -
-            new Date(last.occurredAt).getTime()) /
-          60000
-
-        if (minutesAgo < 30) {
+        if (lastDay === todayDay) {
+          const minutesAgo = Math.round(
+            (Date.now() - new Date(last.occurredAt).getTime()) /
+              60000,
+          )
           return {
             authorized: false as const,
             reason: 'duplicate' as const,
-            minutesAgo: Math.round(minutesAgo),
+            minutesAgo,
             person,
             entryType: 'campo_deportes' as const,
           }
         }
-      }
 
       // --------------------------------------------------------
       // Registrar ingreso
@@ -393,28 +388,22 @@ export const registerEntry = createServerFn({
     // Evitar ingresos duplicados
     // ----------------------------------------------------------
 
-    const last = await lastEntryFor(
-      permitRow.person.id,
-      'pileta',
-    )
+        const lastDay = String(last.occurredAt).slice(0, 10)
+        const todayDay = new Date().toISOString().slice(0, 10)
 
-    if (last && !data.force) {
-      const minutesAgo =
-        (Date.now() -
-          new Date(last.occurredAt).getTime()) /
-        60000
-
-      if (minutesAgo < 30) {
-        return {
-          authorized: false as const,
-          reason: 'duplicate' as const,
-          minutesAgo: Math.round(minutesAgo),
-          person: permitRow.person,
-          permit: permitRow.permit,
-          plan: permitRow.plan,
+        if (lastDay === todayDay) {
+          const minutesAgo = Math.round(
+            (Date.now() - new Date(last.occurredAt).getTime()) /
+              60000,
+          )
+          return {
+            authorized: false as const,
+            reason: 'duplicate' as const,
+            minutesAgo,
+            person,
+            entryType: 'campo_deportes' as const,
+          }
         }
-      }
-    }
 
     // ----------------------------------------------------------
     // Registrar ingreso a pileta

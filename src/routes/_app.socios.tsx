@@ -76,10 +76,16 @@ function SociosPage() {
   const members = Route.useLoaderData()
 
   const [q, setQ] = useState('')
+  const [sortBy, setSortBy] = useState<
+    'memberNumber' | 'dni' | 'lastName' | 'firstName' | 'status' | 'category'
+  >('memberNumber')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [onlyActive, setOnlyActive] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [csvFileName, setCsvFileName] = useState<string | null>(null)
 
   const [preview, setPreview] = useState<Awaited<
     ReturnType<typeof previewMembersImport>
@@ -162,6 +168,7 @@ function SociosPage() {
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    setCsvFileName(file.name)
     const text = await file.text()
     const result = await previewMembersImport({ data: { csv: text } })
     setPreview(result)
@@ -179,22 +186,67 @@ function SociosPage() {
       setImportResult(result)
       setPreview(null)
       if (fileRef.current) fileRef.current.value = ''
+      setCsvFileName(null)
       window.location.reload()
     } finally {
       setImporting(false)
     }
   }
 
-  const filtered = members.filter((m) => {
-    const s = q.toLowerCase()
-    return (
-      !s ||
-      m.member.memberNumber.toLowerCase().includes(s) ||
-      m.person.dni.includes(s) ||
-      m.person.firstName.toLowerCase().includes(s) ||
-      m.person.lastName.toLowerCase().includes(s)
-    )
-  })
+  const filtered = members
+    .filter((m) => {
+      if (onlyActive && m.member.memberStatus !== 'activo') return false
+      if (!q.trim()) return true
+      const s = q.toLowerCase()
+      return (
+        m.member.memberNumber.toLowerCase().includes(s) ||
+        m.person.dni.toLowerCase().includes(s) ||
+        m.person.firstName.toLowerCase().includes(s) ||
+        m.person.lastName.toLowerCase().includes(s) ||
+        (m.person.phone ?? '').toLowerCase().includes(s)
+      )
+    })
+    .slice()
+    .sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1
+      const cat = (m: (typeof members)[number]) =>
+        ((m.member as { category?: string }).category ?? 'general').toLowerCase()
+
+      let cmp = 0
+      switch (sortBy) {
+        case 'dni':
+          cmp = a.person.dni.localeCompare(b.person.dni, 'es', { numeric: true })
+          break
+        case 'lastName':
+          cmp = a.person.lastName.localeCompare(b.person.lastName, 'es', {
+            sensitivity: 'base',
+          })
+          if (cmp === 0) {
+            cmp = a.person.firstName.localeCompare(b.person.firstName, 'es', {
+              sensitivity: 'base',
+            })
+          }
+          break
+        case 'firstName':
+          cmp = a.person.firstName.localeCompare(b.person.firstName, 'es', {
+            sensitivity: 'base',
+          })
+          break
+        case 'status':
+          cmp = a.member.memberStatus.localeCompare(b.member.memberStatus, 'es')
+          break
+        case 'category':
+          cmp = cat(a).localeCompare(cat(b), 'es')
+          break
+        case 'memberNumber':
+        default:
+          cmp = a.member.memberNumber.localeCompare(b.member.memberNumber, 'es', {
+            numeric: true,
+          })
+          break
+      }
+      return cmp * dir
+    })
 
   const isEdit = form.memberId != null
 
@@ -366,23 +418,75 @@ function SociosPage() {
         <p className="text-sm text-slate-500 mb-3">
           Util al inicio de la temporada. Columnas: socio, dni, nombre, apellido, categoria (general o deportista), y opcionales: nacimiento, telefono, email, domicilio, estado.
         </p>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".csv,text/csv"
-          onChange={onFile}
-          className="text-sm"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={onFile}
+            className="sr-only"
+            id="socios-csv-input"
+          />
+          <label
+            htmlFor="socios-csv-input"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
+          >
+            <Upload className="w-4 h-4" />
+            Seleccionar archivo CSV
+          </label>
+          <span className="text-xs text-slate-500">
+            {csvFileName ?? 'Ningún archivo seleccionado'}
+          </span>
+        </div>
 
         {preview && (
           <div className="mt-4 space-y-3">
             <p className="text-sm text-slate-600">
-              Vista previa: {preview.newCount} nuevos, {preview.updateCount} a actualizar,{' '}
-              {preview.errorCount} con error.
+              Vista previa: {preview.newCount} nuevos, {preview.updateCount} a
+              actualizar, {preview.errorCount} con error.
             </p>
+
+            {preview.errorCount > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+                <p className="font-semibold text-amber-900 flex items-center gap-1.5 mb-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Filas con error (no se importan hasta corregirlas)
+                </p>
+                <ul className="space-y-2 max-h-48 overflow-auto">
+                  {preview.rows
+                    .map((r, index) => ({ r, index }))
+                    .filter(({ r }) => r.errors.length > 0)
+                    .map(({ r, index }) => (
+                      <li
+                        key={index}
+                        className="border-b border-amber-200/80 pb-2 last:border-0 last:pb-0"
+                      >
+                        <p className="font-medium text-slate-800">
+                          Fila {index + 2}
+                          {r.row.memberNumber
+                            ? ` · Socio N° ${r.row.memberNumber}`
+                            : ''}
+                          {r.row.dni ? ` · DNI ${r.row.dni}` : ''}
+                          {r.row.lastName || r.row.firstName
+                            ? ` · ${[r.row.lastName, r.row.firstName]
+                                .filter(Boolean)
+                                .join(', ')}`
+                            : ''}
+                        </p>
+                        <p className="text-amber-900 text-xs mt-0.5">
+                          {r.errors.join(' · ')}
+                        </p>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+
             <button
               type="button"
-              disabled={importing || preview.newCount + preview.updateCount === 0}
+              disabled={
+                importing || preview.newCount + preview.updateCount === 0
+              }
               onClick={confirm}
               className="bg-blue-900 disabled:opacity-50 text-white font-semibold px-4 py-2.5 rounded-lg text-sm"
             >
@@ -402,12 +506,53 @@ function SociosPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm p-5">
-        <input
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 mb-3 text-sm"
-          placeholder="Filtrar por numero, DNI o nombre..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 mb-3">
+          <input
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Filtrar por número, DNI o nombre..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select
+            value={sortBy}
+            onChange={(e) =>
+              setSortBy(
+                e.target.value as
+                  | 'memberNumber'
+                  | 'dni'
+                  | 'lastName'
+                  | 'firstName'
+                  | 'status'
+                  | 'category',
+              )
+            }
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="memberNumber">Orden: N° socio</option>
+            <option value="dni">Orden: DNI</option>
+            <option value="lastName">Orden: Apellido</option>
+            <option value="firstName">Orden: Nombre</option>
+            <option value="status">Orden: Estado</option>
+            <option value="category">Orden: Categoría</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+            title="Cambiar dirección"
+          >
+            {sortDir === 'asc' ? '↑ Ascendente' : '↓ Descendente'}
+          </button>
+          <label className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+            <input
+              type="checkbox"
+              checked={onlyActive}
+              onChange={(e) => setOnlyActive(e.target.checked)}
+            />
+            Solo activos
+          </label>
+        </div>
+
         <div className="overflow-auto max-h-[60vh]">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-white">

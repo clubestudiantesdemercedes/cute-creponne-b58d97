@@ -23,6 +23,83 @@ function normalizeDni(dni: string) {
   return dni.replace(/\D/g, '')
 }
 
+const MONTHS_ES: Record<string, string> = {
+  ene: '01',
+  enero: '01',
+  feb: '02',
+  febrero: '02',
+  mar: '03',
+  marzo: '03',
+  abr: '04',
+  abril: '04',
+  may: '05',
+  mayo: '05',
+  jun: '06',
+  junio: '06',
+  jul: '07',
+  julio: '07',
+  ago: '08',
+  agosto: '08',
+  sep: '09',
+  sept: '09',
+  septiembre: '09',
+  set: '09',
+  setiembre: '09',
+  oct: '10',
+  octubre: '10',
+  nov: '11',
+  noviembre: '11',
+  dic: '12',
+  diciembre: '12',
+}
+
+/** Devuelve YYYY-MM-DD o null si no se puede interpretar. */
+function normalizeBirthDate(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+
+  // Ya es ISO: 1990-08-14
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+
+  // 14/08/1990 o 14-08-1990 o 14.08.1990
+  let m = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/)
+  if (m) {
+    let day = m[1].padStart(2, '0')
+    let month = m[2].padStart(2, '0')
+    let year = m[3]
+    if (year.length === 2) {
+      const n = parseInt(year, 10)
+      year = n <= 30 ? `20${year.padStart(2, '0')}` : `19${year.padStart(2, '0')}`
+    }
+    return `${year}-${month}-${day}`
+  }
+
+  // 14-ago-90 / 14-ago-1990 / 14 ago 1990
+  m = raw.match(
+    /^(\d{1,2})[\s\-\/.]+([a-zA-Záéíóúñ]+)[\s\-\/.]+(\d{2,4})$/i,
+  )
+  if (m) {
+    const day = m[1].padStart(2, '0')
+    const monKey = m[2]
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+    const month = MONTHS_ES[monKey]
+    if (!month) return null
+    let year = m[3]
+    if (year.length === 2) {
+      const n = parseInt(year, 10)
+      year = n <= 30 ? `20${year.padStart(2, '0')}` : `19${year.padStart(2, '0')}`
+    }
+    return `${year}-${month}-${day}`
+  }
+
+  return null
+}
+
 const HEADER_ALIASES: Record<string, keyof ImportRowT> = {
   socio: 'memberNumber',
   numerosocio: 'memberNumber',
@@ -133,6 +210,20 @@ export const previewMembersImport = createServerFn({ method: 'POST' })
       else obj.dni = normalizeDni(obj.dni)
       if (!obj.firstName) errors.push('Falta nombre')
       if (!obj.lastName) errors.push('Falta apellido')
+      if (!obj.firstName) errors.push('Falta nombre')
+      if (!obj.lastName) errors.push('Falta apellido')
+
+      if (obj.birthDate) {
+        const iso = normalizeBirthDate(obj.birthDate)
+        if (!iso) {
+          errors.push(`Fecha de nacimiento inválida: ${obj.birthDate}`)
+          obj.birthDate = null
+        } else {
+          obj.birthDate = iso
+        }
+      } else {
+        obj.birthDate = null
+      }
 
       if (obj.status) {
         const s = slug(String(obj.status))
@@ -140,6 +231,9 @@ export const previewMembersImport = createServerFn({ method: 'POST' })
       } else {
         obj.status = 'activo'
       }
+
+      if (obj.category) {
+        const c = slug(String(obj.category))
         if (c.includes('deport') || c === 'dep') {
           obj.category = 'deportista'
         } else if (c.includes('menor') || c === 'nino' || c === 'nina') {
@@ -147,6 +241,9 @@ export const previewMembersImport = createServerFn({ method: 'POST' })
         } else {
           obj.category = 'general'
         }
+      } else {
+        obj.category = 'general'
+      }
 
       const action =
         obj.memberNumber && existingByNumber.has(obj.memberNumber)
@@ -189,7 +286,7 @@ export const confirmMembersImport = createServerFn({ method: 'POST' })
             dni,
             firstName: row.firstName,
             lastName: row.lastName,
-            birthDate: row.birthDate || null,
+            birthDate: normalizeBirthDate(row.birthDate) || null,
             phone: row.phone || null,
             email: row.email || null,
             address: row.address || null,
@@ -211,12 +308,20 @@ export const confirmMembersImport = createServerFn({ method: 'POST' })
           .returning()
       }
 
-      const [existingMember] = await db
+      const memberNumber = String(row.memberNumber).trim()
+
+      const [byNumber] = await db
         .select()
         .from(members)
-        .where(eq(members.memberNumber, row.memberNumber))
+        .where(eq(members.memberNumber, memberNumber))
 
-      if (existingMember) {
+      const [byPerson] = await db
+        .select()
+        .from(members)
+        .where(eq(members.personId, person.id))
+
+      if (byNumber) {
+        // Mismo número de socio → actualizar
         await db
           .update(members)
           .set({
@@ -225,12 +330,25 @@ export const confirmMembersImport = createServerFn({ method: 'POST' })
             category: row.category ?? 'general',
             updatedAt: new Date(),
           })
-          .where(eq(members.id, existingMember.id))
+          .where(eq(members.id, byNumber.id))
+        updated++
+      } else if (byPerson) {
+        // La persona ya es socio con otro número → actualizar esa ficha
+        // (evita error de person_id duplicado)
+        await db
+          .update(members)
+          .set({
+            memberNumber,
+            memberStatus: row.status,
+            category: row.category ?? 'general',
+            updatedAt: new Date(),
+          })
+          .where(eq(members.id, byPerson.id))
         updated++
       } else {
         await db.insert(members).values({
           personId: person.id,
-          memberNumber: row.memberNumber,
+          memberNumber,
           memberStatus: row.status,
           category: row.category ?? 'general',
         })
@@ -248,7 +366,7 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(async () =>
     .from(members)
     .innerJoin(people, eq(members.personId, people.id))
     .orderBy(members.memberNumber)
-    .limit(500)
+    .limit(5000)
   return rows
 })
 

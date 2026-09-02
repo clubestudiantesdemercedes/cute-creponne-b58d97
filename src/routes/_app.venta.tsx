@@ -107,58 +107,6 @@ function VentaRapida() {
     name: 'elegir_tipo',
   })
 
-/** Tarifa a usar en pantalla y en el carrito (jubilado → reducida). */
-function effectiveConditionType(person: PersonData): ConditionType {
-  if (person.conditionType === 'convenio') return 'convenio'
-  if (person.isJubilado) return 'deportista'
-  return person.conditionType
-}
-function ageYears(birthDate: string | null | undefined): number | null {
-  if (!birthDate) return null
-  const birth = new Date(birthDate.includes('T') ? birthDate : birthDate + 'T00:00:00')
-  if (Number.isNaN(birth.getTime())) return null
-
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  const m = today.getMonth() - birth.getMonth()
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-    age -= 1
-  }
-  return age
-}
-
-/** No socio con hasta 12 años (y no jubilado) → 50 % del precio no socio. */
-function isNoSocioMenor(person: PersonData): boolean {
-  if (person.conditionType !== 'no_socio') return false
-  if (person.isJubilado) return false
-  const age = ageYears(person.birthDate)
-  return age != null && age <= 12
-}
-
-function priceForPerson(
-  person: PersonData,
-  planId: number,
-  priceFor: (
-    planId: number,
-    conditionType: ConditionType,
-    conventionId: number | null,
-  ) => number,
-): number {
-  const conditionType =
-    person.conditionType === 'convenio'
-      ? 'convenio'
-      : person.isJubilado
-        ? 'deportista'
-        : person.conditionType
-
-  let price = priceFor(planId, conditionType, person.conventionId)
-
-  if (isNoSocioMenor(person)) {
-    price = Math.round(price / 2)
-  }
-
-  return price
-}
   function priceFor(
     planId: number,
     conditionType: ConditionType,

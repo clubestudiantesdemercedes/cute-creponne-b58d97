@@ -237,7 +237,7 @@ function PlanesPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Planes y tarifas</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Organizado por categoría. Períodos fijos: día (1), semana (7), quincena (14), mensual (30) y
+          Organizado por categoría. Períodos fijos: día (1), semana (7), mensual (30) y
           temporada.
         </p>
       </div>
