@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   UserCheck,
   UserPlus,
@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   MessageCircle,
 } from 'lucide-react'
+import { getPersonPermitQueueEnd } from '@/server/permits.functions'
+
 
 import {
   searchMembers,
@@ -21,7 +23,8 @@ import {
 } from '@/server/people.functions'
 
 import { upsertMember } from '@/server/members.functions'
-
+import { computePermitDates, dayAfterISO } from '@/lib/permit'
+import { formatDateAR, todayISO } from '@/lib/format'
 import { listPlans, listAllPrices } from '@/server/plans.functions'
 import { createSale } from '@/server/sales.functions'
 import { formatARS, formatDateAR } from '@/lib/format'
@@ -1694,6 +1697,20 @@ function ElegirPlan({
         </label>
       )}
 
+  const [queueEnd, setQueueEnd] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void getPersonPermitQueueEnd({
+      data: { personId: persona.personId },
+    }).then((end) => {
+      if (!cancelled) setQueueEnd(end)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [persona.personId])
+
       <p className="text-sm font-semibold text-blue-800 mb-4">
         {persona.isJubilado
           ? 'Jubilado (tarifa reducida)'
@@ -1792,6 +1809,26 @@ function conditionLabel(c: ConditionType) {
   if (c === 'deportista') return 'Deportista'
   if (c === 'no_socio') return 'No socio'
   return 'Convenio'
+}
+
+function previewDatesForPlan(
+  plan: {
+    durationUnit: string
+    durationValue: number
+    seasonStart: string | null
+    seasonEnd: string | null
+  },
+  existingEndDate: string | null,
+): { startDate: string; endDate: string; queued: boolean } {
+  const today = todayISO()
+  let baseStart = today
+  let queued = false
+  if (existingEndDate && existingEndDate >= today) {
+    baseStart = dayAfterISO(existingEndDate)
+    queued = true
+  }
+  const dates = computePermitDates(plan, baseStart)
+  return { ...dates, queued }
 }
 
 /** Interpreta el prefijo del código de permiso. */

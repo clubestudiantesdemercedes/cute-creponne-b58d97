@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and, ne, gte } from 'drizzle-orm'
 import { db } from './db.server'
 import {
   permits,
@@ -301,3 +301,23 @@ export const listExpiringPermits = createServerFn({
     en7dias: withDays.filter((r) => r.daysUntil > 3 && r.daysUntil <= 7),
   }
 })
+
+export const getPersonPermitQueueEnd = createServerFn({ method: 'GET' })
+  .inputValidator((data: { personId: number }) => data)
+  .handler(async ({ data }) => {
+    await requireUser()
+    const today = todayISO()
+    const [row] = await db
+      .select({ endDate: permits.endDate })
+      .from(permits)
+      .where(
+        and(
+          eq(permits.personId, data.personId),
+          ne(permits.status, 'anulado'),
+          gte(permits.endDate, today),
+        ),
+      )
+      .orderBy(desc(permits.endDate))
+      .limit(1)
+    return row?.endDate ?? null
+  })

@@ -14,7 +14,8 @@ import {
   entries,
 } from '../../db/schema'
 import { requireUser } from './auth.server'
-import { computePermitDates } from '@/lib/permit'
+import { computePermitDates, dayAfterISO } from '@/lib/permit'
+import { and, desc, eq, gte, ne } from 'drizzle-orm'
 import { randomCode, generateSaleNumber } from '@/lib/permit'
 import { todayISO } from '@/lib/format'
 import { resolvePrice } from './prices.db.server'
@@ -118,6 +119,31 @@ async function resolveSaleUnitPrice(item: {
   }
 
   return { conditionType, unitPrice }
+}
+
+/** Fin del permiso vigente/pendiente más lejano de la persona (pileta). */
+async function getLatestRelevantPermitEnd(
+  personId: number,
+): Promise<string | null> {
+  const today = todayISO()
+  const rows = await db
+    .select({
+      endDate: permits.endDate,
+      startDate: permits.startDate,
+      status: permits.status,
+    })
+    .from(permits)
+    .where(
+      and(
+        eq(permits.personId, personId),
+        ne(permits.status, 'anulado'),
+        gte(permits.endDate, today),
+      ),
+    )
+    .orderBy(desc(permits.endDate))
+    .limit(1)
+
+  return rows[0]?.endDate ?? null
 }
 
 export const createSale = createServerFn({ method: 'POST' })
@@ -227,17 +253,34 @@ export const createSale = createServerFn({ method: 'POST' })
     // cuando la persona efectivamente acceda al campo o a la pileta.
     // ------------------------------------------------------------
 
-    const purchaseDate = todayISO()
-
+    const today = todayISO()
     const permitRows = []
+
+    // Por si en la misma venta hay 2 ítems de la misma persona:
+    // la cola se va alargando en memoria.
+    const queuedEndByPerson = new Map<number, string>()
 
     for (const item of insertedItems) {
       const plan = planById.get(item.planId)!
 
-      const { startDate, endDate } = computePermitDates(
-        plan,
-        purchaseDate,
-      )
+      let baseStart = today
+      const latestEnd =
+        queuedEndByPerson.get(item.personId) ??
+        (await getLatestRelevantPermitEnd(item.personId))
+
+      if (latestEnd && latestEnd >= today) {
+        baseStart = dayAfterISO(latestEnd)
+      }
+
+      const { startDate, endDate } = computePermitDates(plan, baseStart)
+
+      if (endDate < startDate) {
+        throw new Error(
+          'El permiso no puede generarse: la fecha de inicio queda después del fin de temporada. Revisá las fechas del plan temporada.',
+        )
+      }
+
+      queuedEndByPerson.set(item.personId, endDate)
 
       permitRows.push({
         code:

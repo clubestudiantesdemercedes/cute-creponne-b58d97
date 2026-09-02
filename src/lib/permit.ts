@@ -8,14 +8,23 @@ export type PlanForCalc = {
 }
 
 /** Computes permit start/end dates given a plan and the purchase date (ISO). */
+/** Calcula inicio/fin del permiso.
+ *  purchaseDateISO = día desde el que corre el plan (hoy o día siguiente al permiso actual).
+ */
 export function computePermitDates(
   plan: PlanForCalc,
   purchaseDateISO: string,
 ): { startDate: string; endDate: string } {
+  // Temporada: el fin es siempre el de la temporada, no depende de días restantes.
   if (plan.durationUnit === 'temporada') {
+    const seasonStart = plan.seasonStart ?? purchaseDateISO
+    const seasonEnd = plan.seasonEnd ?? purchaseDateISO
+    // Inicio = el mayor entre la cola (purchaseDate) y el inicio de temporada
+    const startDate =
+      purchaseDateISO > seasonStart ? purchaseDateISO : seasonStart
     return {
-      startDate: plan.seasonStart ?? purchaseDateISO,
-      endDate: plan.seasonEnd ?? purchaseDateISO,
+      startDate,
+      endDate: seasonEnd,
     }
   }
 
@@ -26,6 +35,11 @@ export function computePermitDates(
   )
 
   return { startDate, endDate }
+}
+
+/** Día siguiente a una fecha ISO YYYY-MM-DD */
+export function dayAfterISO(dateISO: string): string {
+  return addDaysISO(dateISO, 1)
 }
 
 /**
