@@ -23,12 +23,11 @@ import {
 } from '@/server/people.functions'
 
 import { upsertMember } from '@/server/members.functions'
-import { computePermitDates, dayAfterISO } from '@/lib/permit'
-import { formatDateAR, todayISO } from '@/lib/format'
+import { formatARS, formatDateAR, todayISO } from '@/lib/format'
 import { listPlans, listAllPrices } from '@/server/plans.functions'
 import { createSale } from '@/server/sales.functions'
-import { formatARS, formatDateAR } from '@/lib/format'
 import { QrCode } from '@/components/QrCode'
+import { computePermitDates, dayAfterISO } from '@/lib/permit'
 
 export const Route = createFileRoute('/_app/venta')({
   loader: async () => {
@@ -541,7 +540,7 @@ function BuscarSocio({
 
   const [mode, setMode] = useState<'buscar' | 'crear'>('buscar')
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [algo, setAlgo] = useState(null as string | null)
 
   const [memberNumber, setMemberNumber] = useState('')
   const [category, setCategory] = useState<
@@ -1149,7 +1148,7 @@ function BuscarNoSocio({
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'buscar' | 'crear'>('buscar')
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [algo, setAlgo] = useState(null as string | null)
 
   async function doSearch(e?: React.FormEvent) {
     e?.preventDefault()
@@ -1663,6 +1662,19 @@ function ElegirPlan({
       : persona.isJubilado
         ? 'deportista'
         : persona.conditionType
+  const [queueEnd, setQueueEnd] = useState(null as string | null)
+
+  useEffect(() => {
+    let cancelled = false
+    void getPersonPermitQueueEnd({
+      data: { personId: persona.personId },
+    }).then((end) => {
+      if (!cancelled) setQueueEnd(end)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [persona.personId])
 
   return (
     <Card>
@@ -1697,19 +1709,6 @@ function ElegirPlan({
         </label>
       )}
 
-  const [queueEnd, setQueueEnd] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    void getPersonPermitQueueEnd({
-      data: { personId: persona.personId },
-    }).then((end) => {
-      if (!cancelled) setQueueEnd(end)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [persona.personId])
 
       <p className="text-sm font-semibold text-blue-800 mb-4">
         {persona.isJubilado
@@ -1748,6 +1747,22 @@ function ElegirPlan({
                     {formatARS(price)}
                   </p>
                 </button>
+                  {(() => {
+                    const d = previewDatesForPlan(p as any, queueEnd)
+                    return (
+                      <p className="text-xs text-slate-600 mt-2">
+                        Vigencia: {formatDateAR(d.startDate)}
+                        {' → '}
+                        {formatDateAR(d.endDate)}
+                        {d.queued && queueEnd ? (
+                          <span className="block text-amber-700 font-medium mt-0.5">
+                            Inicia al finalizar el permiso actual (
+                            {formatDateAR(queueEnd)})
+                          </span>
+                        ) : null}
+                      </p>
+                    )
+                  })()}
               </li>
             )
           })}
@@ -1819,7 +1834,7 @@ function previewDatesForPlan(
     seasonEnd: string | null
   },
   existingEndDate: string | null,
-): { startDate: string; endDate: string; queued: boolean } {
+) {
   const today = todayISO()
   let baseStart = today
   let queued = false
@@ -1828,7 +1843,7 @@ function previewDatesForPlan(
     queued = true
   }
   const dates = computePermitDates(plan, baseStart)
-  return { ...dates, queued }
+  return { startDate: dates.startDate, endDate: dates.endDate, queued }
 }
 
 /** Interpreta el prefijo del código de permiso. */

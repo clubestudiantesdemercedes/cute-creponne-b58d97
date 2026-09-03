@@ -34,5 +34,15 @@ export async function resolvePrice(
       ),
     )
 
-  return generic ? generic.amount : 0
+  // ... después de buscar precio específico de convenio y genérico ...
+
+  const amount = specific?.amount ?? generic?.amount
+
+  if (amount == null || amount <= 0) {
+    throw new Error(
+      'No hay tarifa configurada para este plan y tipo de persona. Revisá Planes y tarifas.',
+    )
+  }
+
+  return amount
 }

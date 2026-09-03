@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import { eq, inArray, and, gte, lte, desc } from 'drizzle-orm'
+import { eq, inArray, and, gte, lte, desc, ne } from 'drizzle-orm'
 import { db } from './db.server'
 import {
   sales,
@@ -14,9 +14,12 @@ import {
   entries,
 } from '../../db/schema'
 import { requireUser } from './auth.server'
-import { computePermitDates, dayAfterISO } from '@/lib/permit'
-import { and, desc, eq, gte, ne } from 'drizzle-orm'
-import { randomCode, generateSaleNumber } from '@/lib/permit'
+import {
+  computePermitDates,
+  dayAfterISO,
+  randomCode,
+  generateSaleNumber,
+} from '@/lib/permit'
 import { todayISO } from '@/lib/format'
 import { resolvePrice } from './prices.db.server'
 
@@ -118,6 +121,11 @@ async function resolveSaleUnitPrice(item: {
     unitPrice = Math.round(unitPrice / 2)
   }
 
+      if (unitPrice <= 0) {
+        throw new Error(
+          'No se puede registrar la venta: hay un ítem sin tarifa válida (precio $0). Revisá Planes y tarifas.',
+        )
+      }
   return { conditionType, unitPrice }
 }
 
@@ -201,156 +209,125 @@ export const createSale = createServerFn({ method: 'POST' })
     }
 
     // ------------------------------------------------------------
-    // CREAR VENTA
+    // CREAR VENTA (TODO O NADA)
     // ------------------------------------------------------------
 
-    const [sale] = await db
-      .insert(sales)
-      .values({
-        saleNumber: generateSaleNumber(),
-        createdByUserId: user.userId,
-        totalAmount: total,
-        paymentMethod: data.paymentMethod,
-        notes: data.notes || null,
-      })
-      .returning()
-
-    // ------------------------------------------------------------
-    // CREAR ITEMS DE LA VENTA
-    // ------------------------------------------------------------
-
-    const insertedItems = await db
-      .insert(saleItems)
-      .values(
-        resolvedItems.map((item) => ({
-          ...item,
-          saleId: sale.id,
-        })),
-      )
-      .returning()
-
-    // ------------------------------------------------------------
-    // REGISTRAR PAGO
-    // ------------------------------------------------------------
-
-    await db.insert(payments).values({
-      saleId: sale.id,
-      amount: total,
-      method: data.paymentMethod,
-      createdByUserId: user.userId,
-    })
-
-    // ------------------------------------------------------------
-    // CREAR PERMISOS
-    // ------------------------------------------------------------
-    //
-    // La venta genera el permiso correspondiente.
-    //
-    // IMPORTANTE:
-    // Crear un permiso NO significa que la persona haya ingresado.
-    //
-    // El ingreso se registrará posteriormente desde entries.functions.ts
-    // cuando la persona efectivamente acceda al campo o a la pileta.
-    // ------------------------------------------------------------
-
-    const today = todayISO()
-    const permitRows = []
-
-    // Por si en la misma venta hay 2 ítems de la misma persona:
-    // la cola se va alargando en memoria.
-    const queuedEndByPerson = new Map<number, string>()
-
-    for (const item of insertedItems) {
-      const plan = planById.get(item.planId)!
-
-      let baseStart = today
-      const latestEnd =
-        queuedEndByPerson.get(item.personId) ??
-        (await getLatestRelevantPermitEnd(item.personId))
-
-      if (latestEnd && latestEnd >= today) {
-        baseStart = dayAfterISO(latestEnd)
-      }
-
-      const { startDate, endDate } = computePermitDates(plan, baseStart)
-
-      if (endDate < startDate) {
-        throw new Error(
-          'El permiso no puede generarse: la fecha de inicio queda después del fin de temporada. Revisá las fechas del plan temporada.',
-        )
-      }
-
-      queuedEndByPerson.set(item.personId, endDate)
-
-      permitRows.push({
-        code:
-          item.conditionType === 'socio' ||
-          item.conditionType === 'deportista'
-            ? randomCode('SOC')
-            : item.conditionType === 'no_socio'
-              ? randomCode('NOS')
-              : randomCode('NOC'),
-
-        personId: item.personId,
-        saleItemId: item.id,
-        planId: item.planId,
-        conditionType: item.conditionType,
-        conventionId: item.conventionId,
-        startDate,
-        endDate,
-      })
-    }
-
-    const insertedPermits = await db
-      .insert(permits)
-      .values(permitRows)
-      .returning()
-
-    // ------------------------------------------------------------
-    // INGRESO AUTOMÁTICO AL CAMPO DE DEPORTES
-    // ------------------------------------------------------------
-    //
-    // La venta registra el paso por el campo.
-    // La pileta sigue requiriendo control de ingreso aparte.
-    // ------------------------------------------------------------
-
-    const personIdsForEntry = [
-      ...new Set(insertedItems.map((item) => item.personId)),
-    ]
-
-    const createdEntries = []
-
-    for (const personId of personIdsForEntry) {
-      const [entry] = await db
-        .insert(entries)
+    const result = await db.transaction(async (tx) => {
+      const [sale] = await tx
+        .insert(sales)
         .values({
-          personId,
-          permitId: null,
-          checkedInByUserId: user.userId,
-          method: 'manual',
-          entryType: 'campo_deportes',
+          saleNumber: generateSaleNumber(),
+          createdByUserId: user.userId,
+          totalAmount: total,
+          paymentMethod: data.paymentMethod,
+          notes: data.notes || null,
         })
         .returning()
 
-      createdEntries.push(entry)
-    }
+      const insertedItems = await tx
+        .insert(saleItems)
+        .values(
+          resolvedItems.map((item) => ({
+            ...item,
+            saleId: sale.id,
+          })),
+        )
+        .returning()
 
-    // ------------------------------------------------------------
-    // AUDITORÍA
-    // ------------------------------------------------------------
+      await tx.insert(payments).values({
+        saleId: sale.id,
+        amount: total,
+        method: data.paymentMethod,
+        createdByUserId: user.userId,
+      })
 
-    await db.insert(auditLogs).values({
-      userId: user.userId,
-      action: 'crear_venta',
-      entityType: 'sale',
-      entityId: String(sale.id),
-      details: {
-        total,
-        itemCount: insertedItems.length,
-        paymentMethod: data.paymentMethod,
-        campoEntries: createdEntries.length,
-      },
+      const today = todayISO()
+      const permitRows = []
+      const queuedEndByPerson = new Map<number, string>()
+
+      for (const item of insertedItems) {
+        const plan = planById.get(item.planId)!
+
+        let baseStart = today
+        const latestEnd =
+          queuedEndByPerson.get(item.personId) ??
+          (await getLatestRelevantPermitEnd(item.personId))
+
+        if (latestEnd && latestEnd >= today) {
+          baseStart = dayAfterISO(latestEnd)
+        }
+
+        const { startDate, endDate } = computePermitDates(plan, baseStart)
+
+        if (endDate < startDate) {
+          throw new Error(
+            'El permiso no puede generarse: la fecha de inicio queda después del fin de temporada. Revisá las fechas del plan temporada.',
+          )
+        }
+
+        queuedEndByPerson.set(item.personId, endDate)
+
+        permitRows.push({
+          code:
+            item.conditionType === 'socio' ||
+            item.conditionType === 'deportista'
+              ? randomCode('SOC')
+              : item.conditionType === 'no_socio'
+                ? randomCode('NOS')
+                : randomCode('NOC'),
+          personId: item.personId,
+          saleItemId: item.id,
+          planId: item.planId,
+          conditionType: item.conditionType,
+          conventionId: item.conventionId,
+          startDate,
+          endDate,
+        })
+      }
+
+      const insertedPermits = await tx
+        .insert(permits)
+        .values(permitRows)
+        .returning()
+
+      const personIdsForEntry = [
+        ...new Set(insertedItems.map((item) => item.personId)),
+      ]
+
+      const createdEntries = []
+
+      for (const personId of personIdsForEntry) {
+        const [entry] = await tx
+          .insert(entries)
+          .values({
+            personId,
+            permitId: null,
+            checkedInByUserId: user.userId,
+            method: 'manual',
+            entryType: 'campo_deportes',
+          })
+          .returning()
+
+        createdEntries.push(entry)
+      }
+
+      await tx.insert(auditLogs).values({
+        userId: user.userId,
+        action: 'crear_venta',
+        entityType: 'sale',
+        entityId: String(sale.id),
+        details: {
+          total,
+          itemCount: insertedItems.length,
+          paymentMethod: data.paymentMethod,
+          campoEntries: createdEntries.length,
+        },
+      })
+
+      return { sale, insertedItems, insertedPermits, createdEntries }
     })
+
+    const { sale, insertedItems, insertedPermits, createdEntries } = result
 
     // ------------------------------------------------------------
     // OBTENER PERSONAS
