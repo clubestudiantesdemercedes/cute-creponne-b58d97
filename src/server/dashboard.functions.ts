@@ -47,9 +47,10 @@ export const getDashboardStats = createServerFn({ method: 'GET' }).handler(async
 
   const activePermits = allPermits.filter((p) => computeLiveStatus(p) === 'activo')
 
-  const bySocio = activePermits.filter((p) => p.conditionType === 'socio').length
-  const byNoSocio = activePermits.filter((p) => p.conditionType === 'no_socio').length
-  const byConvenio = activePermits.filter((p) => p.conditionType === 'convenio').length
+    const bySocio = activePermits.filter((p) => p.conditionType === 'socio').length
+    const byNoSocio = activePermits.filter(
+      (p) => p.conditionType === 'no_socio' || p.conditionType === 'convenio',
+    ).length
 
   // No filtramos por Date en SQL (rompe con netlify-db). Traemos montos/fechas y filtramos en JS.
   const allSales = await db
@@ -76,13 +77,12 @@ export const getDashboardStats = createServerFn({ method: 'GET' }).handler(async
   const recaudacionHoy = salesToday.reduce((acc, s) => acc + (s.totalAmount ?? 0), 0)
 
   // Solo números/strings: siempre serializable para TanStack Start.
-  return {
-    personasHabilitadas: activePermits.length,
-    socios: bySocio,
-    noSocios: byNoSocio,
-    convenios: byConvenio,
-    ventasHoy: salesToday.length,
-    ingresosHoy: entriesToday.length,
-    recaudacionHoy,
-  }
+    return {
+      personasHabilitadas: activePermits.length,
+      socios: bySocio,
+      noSocios: byNoSocio,
+      ventasHoy: salesToday.length,
+      ingresosHoy: entriesToday.length,
+      recaudacionHoy,
+    }
 })

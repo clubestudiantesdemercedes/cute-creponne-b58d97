@@ -121,11 +121,17 @@ async function resolveSaleUnitPrice(item: {
     unitPrice = Math.round(unitPrice / 2)
   }
 
-      if (unitPrice <= 0) {
-        throw new Error(
-          'No se puede registrar la venta: hay un ítem sin tarifa válida (precio $0). Revisá Planes y tarifas.',
-        )
-      }
+  if (unitPrice < 0) {
+    throw new Error(
+      'No se puede registrar la venta: tarifa inválida. Revisá Planes y tarifas.',
+    )
+  }
+  if (unitPrice === 0 && conditionType !== 'convenio') {
+    throw new Error(
+      'No se puede registrar la venta: hay un ítem sin tarifa válida (precio $0). Revisá Planes y tarifas.',
+    )
+  }
+
   return { conditionType, unitPrice }
 }
 
@@ -206,6 +212,18 @@ export const createSale = createServerFn({ method: 'POST' })
         planId: item.planId,
         unitPrice,
       })
+
+      // $0 solo permitido en convenio (cortesía / entrenadores)
+      if (unitPrice < 0) {
+        throw new Error(
+          'No se puede registrar la venta: tarifa inválida. Revisá Planes y tarifas.',
+        )
+      }
+      if (unitPrice === 0 && conditionType !== 'convenio') {
+        throw new Error(
+          'No se puede registrar la venta: hay un ítem sin tarifa válida (precio $0). Revisá Planes y tarifas.',
+        )
+      }
     }
 
     // ------------------------------------------------------------

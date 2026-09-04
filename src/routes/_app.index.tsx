@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Users, ShoppingCart, DoorOpen, DollarSign, IdCard, Handshake, AlertTriangle } from 'lucide-react'
+import { Users, ShoppingCart, DoorOpen, DollarSign, IdCard, AlertTriangle } from 'lucide-react'
 import { getDashboardStats } from '@/server/dashboard.functions'
 import { listExpiringPermits } from '@/server/permits.functions'
 import { formatARS, formatDateAR } from '@/lib/format'
@@ -8,7 +8,6 @@ const EMPTY_STATS = {
   personasHabilitadas: 0,
   socios: 0,
   noSocios: 0,
-  convenios: 0,
   ventasHoy: 0,
   ingresosHoy: 0,
   recaudacionHoy: 0,
@@ -138,10 +137,10 @@ function Dashboard() {
         />
         <Card icon={IdCard} label="Socios habilitados" value={String(stats.socios)} accent="bg-blue-700" />
         <Card
-          icon={Handshake}
-          label="Convenios habilitados"
-          value={String(stats.convenios)}
-          accent="bg-violet-600"
+         icon={Users}
+         label="No socios habilitados"
+         value={String(stats.noSocios)}
+         accent="bg-violet-600"
         />
       </div>
 

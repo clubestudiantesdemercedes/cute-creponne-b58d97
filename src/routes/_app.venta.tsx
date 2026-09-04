@@ -540,7 +540,7 @@ function BuscarSocio({
 
   const [mode, setMode] = useState<'buscar' | 'crear'>('buscar')
   const [saving, setSaving] = useState(false)
-  const [algo, setAlgo] = useState(null as string | null)
+  const [error, setError] = useState(null as string | null)
 
   const [memberNumber, setMemberNumber] = useState('')
   const [category, setCategory] = useState<
@@ -1148,7 +1148,7 @@ function BuscarNoSocio({
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'buscar' | 'crear'>('buscar')
   const [saving, setSaving] = useState(false)
-  const [algo, setAlgo] = useState(null as string | null)
+  const [error, setError] = useState(null as string | null)
 
   async function doSearch(e?: React.FormEvent) {
     e?.preventDefault()
