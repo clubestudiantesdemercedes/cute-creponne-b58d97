@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import { and, eq, or, ilike, isNull } from 'drizzle-orm'
+import { and, eq, or, ilike, isNull, ne } from 'drizzle-orm'
 import { db } from './db.server'
 import {
   people,
@@ -130,73 +130,58 @@ export const searchNonMembers = createServerFn({
     await requireUser()
 
     const q = data.query.trim()
-
-    // ========================================================
-    // SIN BÚSQUEDA
-    // Mostrar todas las personas que no son socios.
-    // ========================================================
-
-    if (!q) {
-      return db
-        .select({
-          person: people,
-        })
-        .from(people)
-        .leftJoin(
-          members,
-          eq(members.personId, people.id),
-        )
-        .where(isNull(members.id))
-        .orderBy(
-          people.lastName,
-          people.firstName,
-        )
-        .limit(500)
-    }
-
-    // ========================================================
-    // CON BÚSQUEDA
-    // ========================================================
-
     const dni = normalizeDni(q)
 
-    return db
-      .select({
-        person: people,
-      })
+    const baseQuery = db
+      .select({ person: people })
       .from(people)
-      .leftJoin(
-        members,
-        eq(members.personId, people.id),
-      )
+      .leftJoin(members, eq(members.personId, people.id))
       .where(
         and(
           isNull(members.id),
-          or(
-            // DNI
-            dni
-              ? eq(people.dni, dni)
-              : undefined,
-
-            // Nombre
-            ilike(
-              people.firstName,
-              `%${q}%`,
-            ),
-
-            // Apellido
-            ilike(
-              people.lastName,
-              `%${q}%`,
-            ),
-          ),
+          q
+            ? or(
+                dni ? eq(people.dni, dni) : undefined,
+                ilike(people.firstName, `%${q}%`),
+                ilike(people.lastName, `%${q}%`),
+                ilike(people.phone, `%${q}%`),
+              )
+            : undefined,
         ),
       )
-      .orderBy(
-        people.lastName,
-        people.firstName,
-      )
-      .limit(100)
+      .orderBy(people.lastName, people.firstName)
+      .limit(q ? 200 : 2000)
+
+    const rows = await baseQuery
+
+    const result = []
+    for (const row of rows) {
+      const [conv] = await db
+        .select({
+          conventionId: conventions.id,
+          conventionName: conventions.name,
+        })
+        .from(conventionBeneficiaries)
+        .innerJoin(
+          conventions,
+          eq(conventionBeneficiaries.conventionId, conventions.id),
+        )
+        .where(
+          and(
+            eq(conventionBeneficiaries.personId, row.person.id),
+            eq(conventionBeneficiaries.status, 'activo'),
+            eq(conventions.status, 'activo'),
+          ),
+        )
+        .limit(1)
+
+      result.push({
+        person: row.person,
+        convention: conv ?? null,
+      })
+    }
+
+    return result
   })
 
 // ============================================================
@@ -209,6 +194,7 @@ export const createOrUpdatePerson = createServerFn({
   .inputValidator(
     PersonInput.extend({
       id: z.number().optional(),
+      conventionId: z.number().nullable().optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -358,6 +344,92 @@ export const listActiveConventions = createServerFn({
     .where(eq(conventions.status, 'activo'))
     .orderBy(conventions.name)
 })
+
+/** Convenio activo de una persona (uno solo), o null. */
+export const getPersonConvention = createServerFn({ method: 'GET' })
+  .inputValidator((data: { personId: number }) => data)
+  .handler(async ({ data }) => {
+    await requireUser()
+
+    const [row] = await db
+      .select({
+        beneficiary: conventionBeneficiaries,
+        convention: conventions,
+      })
+      .from(conventionBeneficiaries)
+      .innerJoin(
+        conventions,
+        eq(conventionBeneficiaries.conventionId, conventions.id),
+      )
+      .where(
+        and(
+          eq(conventionBeneficiaries.personId, data.personId),
+          eq(conventionBeneficiaries.status, 'activo'),
+          eq(conventions.status, 'activo'),
+        ),
+      )
+      .limit(1)
+
+    if (!row) return null
+
+    return {
+      conventionId: row.convention.id,
+      conventionName: row.convention.name,
+      beneficiaryId: row.beneficiary.id,
+    }
+  })
+
+/**
+ * Asigna un solo convenio activo a la persona.
+ * conventionId = null → sin convenio (desactiva todos).
+ */
+export const setPersonConvention = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: { personId: number; conventionId: number | null }) => data,
+  )
+  .handler(async ({ data }) => {
+    await requireUser()
+
+    // Desactivar todos los beneficiarios activos de esta persona
+    await db
+      .update(conventionBeneficiaries)
+      .set({ status: 'inactivo' })
+      .where(
+        and(
+          eq(conventionBeneficiaries.personId, data.personId),
+          eq(conventionBeneficiaries.status, 'activo'),
+        ),
+      )
+
+    if (data.conventionId == null) {
+      return { ok: true, conventionId: null as number | null }
+    }
+
+    const [existing] = await db
+      .select()
+      .from(conventionBeneficiaries)
+      .where(
+        and(
+          eq(conventionBeneficiaries.personId, data.personId),
+          eq(conventionBeneficiaries.conventionId, data.conventionId),
+        ),
+      )
+
+    if (existing) {
+      await db
+        .update(conventionBeneficiaries)
+        .set({ status: 'activo' })
+        .where(eq(conventionBeneficiaries.id, existing.id))
+    } else {
+      await db.insert(conventionBeneficiaries).values({
+        personId: data.personId,
+        conventionId: data.conventionId,
+        status: 'activo',
+      })
+    }
+
+    return { ok: true, conventionId: data.conventionId }
+  })
 
 // ============================================================
 // BUSCAR BENEFICIARIO DE CONVENIO POR DNI

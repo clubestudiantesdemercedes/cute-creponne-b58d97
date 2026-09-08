@@ -17,9 +17,16 @@ import {
   type ImportRowT,
 } from '@/server/members.functions'
 import { formatDateAR } from '@/lib/format'
+import { listActiveConventions } from '@/server/people.functions'
 
 export const Route = createFileRoute('/_app/socios')({
-  loader: () => listMembers(),
+  loader: async () => {
+    const [members, conventions] = await Promise.all([
+      listMembers(),
+      listActiveConventions(),
+    ])
+    return { members, conventions }
+  },
   component: SociosPage,
 })
 
@@ -36,6 +43,7 @@ type FormState = {
   address: string
   memberStatus: 'activo' | 'inactivo'
   category: 'general' | 'deportista'
+  conventionId: number | null
 }
 
 function emptyForm(): FormState {
@@ -50,6 +58,7 @@ function emptyForm(): FormState {
     address: '',
     memberStatus: 'activo',
     category: 'general',
+    conventionId: null,
   }
 }
 
@@ -73,7 +82,7 @@ function formatMemberAlta(value: unknown): string {
 }
 
 function SociosPage() {
-  const members = Route.useLoaderData()
+  const { members, conventions } = Route.useLoaderData()
 
   const [q, setQ] = useState('')
   const [sortBy, setSortBy] = useState<
@@ -122,6 +131,7 @@ function SociosPage() {
         (m.member as { category?: string }).category === 'deportista'
           ? 'deportista'
           : 'general',
+        conventionId: m.convention?.conventionId ?? null,
     })
     setFormError(null)
     setFormOpen(true)
@@ -153,6 +163,7 @@ function SociosPage() {
           address: form.address.trim() || null,
           memberStatus: form.memberStatus,
           category: form.category,
+          conventionId: form.conventionId,
         },
       })
       window.location.reload()
@@ -363,6 +374,28 @@ function SociosPage() {
               </select>
             </label>
             <label className="text-sm">
+              <span className="text-slate-600">Convenio</span>
+              <select
+                value={form.conventionId ?? ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    conventionId: e.target.value
+                      ? Number(e.target.value)
+                      : null,
+                  })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              >
+                <option value="">Sin convenio</option>
+                {conventions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
               <span className="text-slate-600">Telefono</span>
               <input
                 value={form.phone}
@@ -564,6 +597,7 @@ function SociosPage() {
                 <th className="py-2 pr-2">Alta</th>
                 <th className="py-2 pr-2">Estado</th>
                 <th className="py-2 pr-2">Categoria</th>
+                <th className="py-2 pr-2">Convenio</th>
                 <th className="py-2 pr-2"></th>
               </tr>
             </thead>
@@ -590,6 +624,9 @@ function SociosPage() {
                     {(m.member as { category?: string }).category === 'deportista'
                       ? 'Deportista'
                       : 'General'}
+                  </td>
+                  <td className="py-2 pr-2 text-xs text-slate-600">
+                    {m.convention?.conventionName ?? '—'}
                   </td>
                   <td className="py-2 pr-2">
                     <button

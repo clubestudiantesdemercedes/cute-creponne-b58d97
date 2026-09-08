@@ -1,8 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { db } from './db.server'
-import { people, members } from '../../db/schema'
+import { people, members, conventionBeneficiaries, conventions } from '../../db/schema'
 import { requireUser } from './auth.server'
 
 const ImportRow = z.object({
@@ -367,8 +367,79 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(async () =>
     .innerJoin(people, eq(members.personId, people.id))
     .orderBy(members.memberNumber)
     .limit(5000)
-  return rows
+
+  const result = []
+  for (const row of rows) {
+    const [conv] = await db
+      .select({
+        conventionId: conventions.id,
+        conventionName: conventions.name,
+      })
+      .from(conventionBeneficiaries)
+      .innerJoin(
+        conventions,
+        eq(conventionBeneficiaries.conventionId, conventions.id),
+      )
+      .where(
+        and(
+          eq(conventionBeneficiaries.personId, row.person.id),
+          eq(conventionBeneficiaries.status, 'activo'),
+          eq(conventions.status, 'activo'),
+        ),
+      )
+      .limit(1)
+
+    result.push({
+      ...row,
+      convention: conv ?? null,
+    })
+  }
+
+  return result
 })
+
+async function assignPersonConvention(
+  personId: number,
+  conventionId: number | null | undefined,
+) {
+  // undefined = no tocar el convenio
+  if (conventionId === undefined) return
+
+  await db
+    .update(conventionBeneficiaries)
+    .set({ status: 'inactivo' })
+    .where(
+      and(
+        eq(conventionBeneficiaries.personId, personId),
+        eq(conventionBeneficiaries.status, 'activo'),
+      ),
+    )
+
+  if (conventionId == null) return
+
+  const [existing] = await db
+    .select()
+    .from(conventionBeneficiaries)
+    .where(
+      and(
+        eq(conventionBeneficiaries.personId, personId),
+        eq(conventionBeneficiaries.conventionId, conventionId),
+      ),
+    )
+
+  if (existing) {
+    await db
+      .update(conventionBeneficiaries)
+      .set({ status: 'activo' })
+      .where(eq(conventionBeneficiaries.id, existing.id))
+  } else {
+    await db.insert(conventionBeneficiaries).values({
+      personId,
+      conventionId,
+      status: 'activo',
+    })
+  }
+}
 
 const UpsertMemberInput = z.object({
   memberId: z.number().optional(),
@@ -383,6 +454,7 @@ const UpsertMemberInput = z.object({
   address: z.string().optional().nullable(),
   memberStatus: z.enum(['activo', 'inactivo']).default('activo'),
   category: z.enum(['general', 'deportista', 'menor']).default('general'),
+  conventionId: z.number().nullable().optional(),
 })
 
 export const upsertMember = createServerFn({ method: 'POST' })
@@ -469,6 +541,7 @@ export const upsertMember = createServerFn({ method: 'POST' })
         .where(eq(members.id, data.memberId))
         .returning()
 
+      await assignPersonConvention(person.id, data.conventionId)
       return { member: updated, person }
     }
 
@@ -486,5 +559,6 @@ export const upsertMember = createServerFn({ method: 'POST' })
       })
       .returning()
 
+      await assignPersonConvention(person.id, data.conventionId)
     return { member: created, person }
   })

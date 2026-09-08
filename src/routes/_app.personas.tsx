@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Search,
   History,
@@ -13,6 +13,9 @@ import {
   findPersonByDni,
   setPersonStatus,
   createOrUpdatePerson,
+  listActiveConventions,
+  setPersonConvention,
+  getPersonConvention,
 } from '@/server/people.functions'
 import { findActivePermitsByDni } from '@/server/permits.functions'
 import { formatDateAR, formatDateTimeAR } from '@/lib/format'
@@ -31,6 +34,7 @@ type PersonForm = {
   email: string
   address: string
   notes: string
+  conventionId: number | null
 }
 
 const emptyForm: PersonForm = {
@@ -42,6 +46,7 @@ const emptyForm: PersonForm = {
   email: '',
   address: '',
   notes: '',
+  conventionId: null,
 }
 
 function PersonasPage() {
@@ -67,6 +72,18 @@ function PersonasPage() {
 
   const [form, setForm] = useState<PersonForm>(emptyForm)
 
+  const [conventions, setConventions] = useState<
+    Awaited<ReturnType<typeof listActiveConventions>>
+  >([])
+  useEffect(() => {
+    void loadAll()
+  }, [])
+
+
+  useEffect(() => {
+    void listActiveConventions().then(setConventions)
+  }, [])
+
   function resetForm() {
     setForm(emptyForm)
     setEditing(false)
@@ -79,7 +96,13 @@ function PersonasPage() {
     setShowForm(true)
   }
 
-  function openEditPerson(person: NonNullable<typeof directHit>['person']) {
+  async function openEditPerson(
+    person: NonNullable<typeof directHit>['person'],
+  ) {
+    const conv = await getPersonConvention({
+      data: { personId: person.id },
+    })
+
     setForm({
       id: person.id,
       dni: person.dni,
@@ -92,6 +115,7 @@ function PersonasPage() {
       email: person.email ?? '',
       address: person.address ?? '',
       notes: person.notes ?? '',
+      conventionId: conv?.conventionId ?? null,
     })
 
     setEditing(true)
@@ -160,6 +184,21 @@ function PersonasPage() {
     }
   }
 
+  const filtered = results.filter((r) => {
+    const s = query.trim().toLowerCase()
+    if (!s) return true
+    const p = r.person
+    const conv = r.convention?.conventionName ?? ''
+    return (
+      p.dni.toLowerCase().includes(s) ||
+      p.firstName.toLowerCase().includes(s) ||
+      p.lastName.toLowerCase().includes(s) ||
+      (p.phone ?? '').toLowerCase().includes(s) ||
+      (p.email ?? '').toLowerCase().includes(s) ||
+      conv.toLowerCase().includes(s)
+    )
+  })
+
   async function openHistory(dni: string) {
     setSelectedDni(dni)
 
@@ -185,6 +224,15 @@ function PersonasPage() {
       const result = await createOrUpdatePerson({
         data: form,
       })
+
+      if (result.person?.id != null) {
+        await setPersonConvention({
+          data: {
+            personId: result.person.id,
+            conventionId: form.conventionId,
+          },
+        })
+      }
 
       if (result.created) {
         alert('Persona creada correctamente.')
@@ -440,6 +488,30 @@ function PersonasPage() {
                 }
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Convenio
+              </label>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                value={form.conventionId ?? ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    conventionId: e.target.value
+                      ? Number(e.target.value)
+                      : null,
+                  })
+                }
+              >
+                <option value="">Sin convenio</option>
+                {conventions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium mb-1">
@@ -488,7 +560,6 @@ function PersonasPage() {
         onSubmit={doSearch}
         className="bg-white rounded-xl shadow-sm p-4"
       >
-        <div className="flex flex-col sm:flex-row gap-2">
           <input
             className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5"
             placeholder="Buscar por DNI, nombre o apellido"
@@ -517,41 +588,86 @@ function PersonasPage() {
         </div>
       </form>
 
-      {!selectedDni && (
-        <div className="bg-white rounded-xl shadow-sm divide-y divide-slate-100">
-          {directHit && (
-            <PersonRow
-              name={`${directHit.person.firstName} ${directHit.person.lastName}`}
-              dni={directHit.person.dni}
-              status={directHit.person.status}
-              onOpen={() => openHistory(directHit.person.dni)}
-              onEdit={() => openEditPerson(directHit.person)}
-            />
-          )}
-
-          {results.map((r) => (
-            <PersonRow
-              key={r.person.id}
-              name={`${r.person.firstName} ${r.person.lastName}`}
-              dni={r.person.dni}
-              status={r.person.status}
-              onOpen={() => openHistory(r.person.dni)}
-              onEdit={() => openEditPerson(r.person)}
-            />
-          ))}
-
-          {!loading &&
-            !loadingAll &&
-            results.length === 0 &&
-            !directHit && (
-              <div className="p-6 text-center">
-                <p className="text-sm text-slate-400">
-                  Buscá una persona o utilizá "Ver todas".
-                </p>
-              </div>
-            )}
+      <div className="bg-white rounded-xl shadow-sm p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p className="text-sm text-slate-600">
+            {loadingAll || loading
+              ? 'Cargando...'
+              : `${filtered.length} persona(s)`}
+          </p>
+          <button
+            type="button"
+            onClick={openNewPerson}
+            className="inline-flex items-center gap-1.5 bg-blue-900 text-white font-semibold px-4 py-2 rounded-lg text-sm"
+          >
+            <UserPlus className="w-4 h-4" />
+            Nueva persona
+          </button>
         </div>
-      )}
+
+        <div className="overflow-auto max-h-[65vh]">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr className="text-left text-slate-500 border-b border-slate-200">
+                <th className="py-2 pr-2">Apellido y nombre</th>
+                <th className="py-2 pr-2">DNI</th>
+                <th className="py-2 pr-2">Teléfono</th>
+                <th className="py-2 pr-2">Email</th>
+                <th className="py-2 pr-2">Convenio</th>
+                <th className="py-2 pr-2">Estado</th>
+                <th className="py-2 pr-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((r) => (
+                <tr key={r.person.id}>
+                  <td className="py-2 pr-2 font-medium">
+                    {r.person.lastName}, {r.person.firstName}
+                  </td>
+                  <td className="py-2 pr-2">{r.person.dni}</td>
+                  <td className="py-2 pr-2">{r.person.phone ?? '—'}</td>
+                  <td className="py-2 pr-2 text-xs">
+                    {r.person.email ?? '—'}
+                  </td>
+                  <td className="py-2 pr-2 text-xs text-slate-600">
+                    {r.convention?.conventionName ?? '—'}
+                  </td>
+                  <td className="py-2 pr-2">
+                    {r.person.status === 'activo' ? (
+                      <span className="text-emerald-700 font-medium">Activo</span>
+                    ) : (
+                      <span className="text-red-700 font-medium">Inactivo</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => openEditPerson(r.person)}
+                      className="text-blue-800 text-xs font-semibold underline mr-2"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void openHistory(r.person.dni)}
+                      className="text-slate-600 text-xs font-semibold underline"
+                    >
+                      Historial
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && !loading && !loadingAll && (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-slate-400">
+                    No hay personas para mostrar.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {selectedDni && history && (
         <div className="bg-white rounded-xl shadow-sm p-5">

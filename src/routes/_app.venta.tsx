@@ -20,6 +20,7 @@ import {
   createOrUpdatePerson,
   listActiveConventions,
   createConventionBeneficiary,
+  getPersonConvention,
 } from '@/server/people.functions'
 
 import { upsertMember } from '@/server/members.functions'
@@ -228,16 +229,15 @@ function VentaRapida() {
         />
       )}
 
-      {step.name === 'buscar_no_socio' && (
+{step.name === 'buscar_no_socio' && (
         <BuscarNoSocio
           onBack={() =>
             setStep({ name: 'elegir_tipo' })
           }
           onFound={(person) =>
             setStep({
-              name: 'verificar_persona',
+              name: 'elegir_plan',
               person,
-              source: 'no_socio',
             })
           }
         />
@@ -627,20 +627,27 @@ function BuscarSocio({
           ? 'deportista'
           : 'socio'
 
-      onFound({
-        personId: result.person.id,
-        fullName: `${result.person.firstName} ${result.person.lastName}`,
-        dni: result.person.dni,
-        firstName: result.person.firstName,
-        lastName: result.person.lastName,
-        birthDate: result.person.birthDate ?? '',
-        phone: result.person.phone ?? '',
-        email: result.person.email ?? '',
-        address: result.person.address ?? '',
-        conditionType,
-        conventionId: null,
-        isJubilado: false,
-      })
+      onFound(
+        await withPersonConvention({
+          personId: result.person.id,
+          fullName: `${result.person.firstName} ${result.person.lastName}`,
+          dni: result.person.dni,
+          firstName: result.person.firstName,
+          lastName: result.person.lastName,
+          birthDate: result.person.birthDate ?? '',
+          phone: result.person.phone ?? '',
+          email: result.person.email ?? '',
+          address: result.person.address ?? '',
+          conditionType:
+            category === 'deportista' ||
+            category === 'menor' ||
+            (age != null && age <= 12)
+              ? 'deportista'
+              : 'socio',
+          conventionId: null,
+          isJubilado: false,
+        }),
+      )
     } catch (err) {
       setError(
         err instanceof Error
@@ -868,7 +875,10 @@ function BuscarSocio({
         <button
           type="button"
           disabled={!active && !override}
-          onClick={() => onFound(personFromMember(selected))}
+          onClick={async () => {
+  if (!selected) return
+  onFound(await withPersonConvention(personFromMember(selected)))
+}}
           className="mt-4 w-full bg-emerald-600 disabled:opacity-40 text-white font-semibold py-3 rounded-lg"
         >
           Continuar
@@ -1163,22 +1173,24 @@ function BuscarNoSocio({
     }
   }
 
-  function selectPerson(row: (typeof results)[number]) {
+  async function selectPerson(row: (typeof results)[number]) {
     const person = row.person
-    onFound({
-      personId: person.id,
-      fullName: `${person.firstName} ${person.lastName}`,
-      dni: person.dni,
-      firstName: person.firstName,
-      lastName: person.lastName,
-      birthDate: person.birthDate ?? '',
-      phone: person.phone ?? '',
-      email: person.email ?? '',
-      address: person.address ?? '',
-      conditionType: 'no_socio',
-      conventionId: null,
-      isJubilado: false,
-    })
+    onFound(
+      await withPersonConvention({
+        personId: person.id,
+        fullName: `${person.firstName} ${person.lastName}`,
+        dni: person.dni,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        birthDate: person.birthDate ?? '',
+        phone: person.phone ?? '',
+        email: person.email ?? '',
+        address: person.address ?? '',
+        conditionType: 'no_socio',
+        conventionId: null,
+        isJubilado: false,
+      }),
+    )
   }
 
   async function createNew(data: PersonFormData) {
@@ -1198,20 +1210,22 @@ function BuscarNoSocio({
       })
 
       const p = result.person
-      onFound({
-        personId: p.id,
-        fullName: `${p.firstName} ${p.lastName}`,
-        dni: p.dni,
-        firstName: p.firstName,
-        lastName: p.lastName,
-        birthDate: p.birthDate ?? '',
-        phone: p.phone ?? '',
-        email: p.email ?? '',
-        address: p.address ?? '',
-        conditionType: 'no_socio',
-        conventionId: null,
-        isJubilado: false,
-      })
+      onFound(
+        await withPersonConvention({
+          personId: p.id,
+          fullName: `${p.firstName} ${p.lastName}`,
+          dni: p.dni,
+          firstName: p.firstName,
+          lastName: p.lastName,
+          birthDate: p.birthDate ?? '',
+          phone: p.phone ?? '',
+          email: p.email ?? '',
+          address: p.address ?? '',
+          conditionType: 'no_socio',
+          conventionId: null,
+          isJubilado: false,
+        }),
+      )
     } catch (e) {
       setError(
         e instanceof Error
@@ -1817,6 +1831,22 @@ function priceForPerson(
   }
 
   return price
+}
+
+/** Si la persona tiene convenio activo, la venta usa ese convenio. */
+async function withPersonConvention(
+  person: PersonData,
+): Promise<PersonData> {
+  const conv = await getPersonConvention({
+    data: { personId: person.personId },
+  })
+  if (!conv) return person
+  return {
+    ...person,
+    conditionType: 'convenio',
+    conventionId: conv.conventionId,
+    conventionName: conv.conventionName,
+  }
 }
 
 function conditionLabel(c: ConditionType) {
