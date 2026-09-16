@@ -7,7 +7,6 @@ import {
   lte,
 } from 'drizzle-orm'
 import { z } from 'zod'
-import { db } from './db.server'
 import {
   permits,
   people,
@@ -16,7 +15,7 @@ import {
   auditLogs,
 } from '../../db/schema'
 import { requireUser } from './auth.server'
-import { computeLiveStatus } from './permits.functions'
+import { computeLiveStatus } from '@/lib/permit-status'
 
 // ============================================================
 // TIPOS
@@ -24,114 +23,7 @@ import { computeLiveStatus } from './permits.functions'
 
 type EntryType = 'campo_deportes' | 'pileta'
 
-// ============================================================
-// ÚLTIMO INGRESO DE UNA PERSONA
-// ============================================================
-//
-// Se filtra por tipo de ingreso para que:
-//
-//   campo_deportes
-//
-// no bloquee:
-//
-//   pileta
-//
-// y viceversa.
-// ============================================================
 
-async function lastEntryFor(
-  personId: number,
-  entryType: EntryType,
-) {
-  const [row] = await db
-    .select()
-    .from(entries)
-    .where(
-      and(
-        eq(entries.personId, personId),
-        eq(entries.entryType, entryType),
-      ),
-    )
-    .orderBy(desc(entries.occurredAt))
-    .limit(1)
-
-  return row ?? null
-}
-
-// ============================================================
-// BUSCAR PERSONA POR CÓDIGO DE PERMISO
-// ============================================================
-//
-// El QR actual representa un permiso.
-//
-// Para campo_deportes podemos utilizar ese QR solamente como
-// identificación de la persona.
-//
-// NO se valida el permiso cuando entryType = campo_deportes.
-//
-// Para pileta sí se valida posteriormente.
-// ============================================================
-
-async function findPermitByCode(code: string) {
-  const [row] = await db
-    .select({
-      permit: permits,
-      person: people,
-      plan: plans,
-    })
-    .from(permits)
-    .innerJoin(
-      people,
-      eq(permits.personId, people.id),
-    )
-    .innerJoin(
-      plans,
-      eq(permits.planId, plans.id),
-    )
-    .where(eq(permits.code, code.trim()))
-
-  return row ?? null
-}
-
-// ============================================================
-// BUSCAR PERMISO ACTIVO DE UNA PERSONA
-// ============================================================
-//
-// No usamos simplemente "el último permiso creado", porque podría
-// estar vencido mientras existe otro permiso vigente.
-// ============================================================
-
-async function findActivePermitForPerson(
-  personId: number,
-) {
-  const rows = await db
-    .select({
-      permit: permits,
-      person: people,
-      plan: plans,
-    })
-    .from(permits)
-    .innerJoin(
-      people,
-      eq(permits.personId, people.id),
-    )
-    .innerJoin(
-      plans,
-      eq(permits.planId, plans.id),
-    )
-    .where(eq(permits.personId, personId))
-    .orderBy(desc(permits.createdAt))
-
-  for (const row of rows) {
-    const liveStatus = computeLiveStatus(row.permit)
-
-    if (liveStatus === 'activo') {
-      return row
-    }
-  }
-
-  return null
-}
 
 // ============================================================
 // INPUT
@@ -165,6 +57,14 @@ export const registerEntry = createServerFn({
 })
   .inputValidator(RegisterEntryInput)
   .handler(async ({ data }) => {
+    const {
+      lastEntryFor,
+      findPermitByCode,
+      findActivePermitForPerson,
+    } = await import('./entries.helpers.server')
+
+    const { db } = await import('./db.server')
+
     const user = await requireUser()
 
     if (
@@ -460,6 +360,8 @@ export const listEntries = createServerFn({
     }) => data,
   )
   .handler(async ({ data }) => {
+    const { db } = await import('./db.server')
+
     await requireUser()
 
     const rows = await db
