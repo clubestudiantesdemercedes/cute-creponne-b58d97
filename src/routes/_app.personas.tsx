@@ -133,8 +133,7 @@ function PersonasPage() {
       const q = query.trim()
 
       if (!q) {
-        setResults([])
-        setDirectHit(null)
+        // Lista completa: el filtro lo hace `filtered` en pantalla
         return
       }
 
@@ -556,36 +555,39 @@ function PersonasPage() {
         </form>
       )}
 
-      <form
-        onSubmit={doSearch}
-        className="bg-white rounded-xl shadow-sm p-4"
-      >
-          <input
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5"
-            placeholder="Buscar por DNI, nombre o apellido"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+<form
+  onSubmit={doSearch}
+  className="bg-white rounded-xl shadow-sm p-4 flex flex-col sm:flex-row gap-2"
+>
+  <input
+    className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5"
+    placeholder="Buscar por DNI, nombre o apellido"
+    value={query}
+    onChange={(e) => setQuery(e.target.value)}
+  />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-900 hover:bg-blue-800 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-1.5"
-          >
-            <Search className="w-4 h-4" />
-            {loading ? 'Buscando...' : 'Buscar'}
-          </button>
+  <button
+    type="submit"
+    disabled={loading}
+    className="bg-blue-900 hover:bg-blue-800 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-1.5"
+  >
+    <Search className="w-4 h-4" />
+    {loading ? 'Buscando...' : 'Buscar'}
+  </button>
 
-          <button
-            type="button"
-            onClick={loadAll}
-            disabled={loadingAll}
-            className="border border-slate-300 hover:bg-slate-50 px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-1.5"
-          >
-            <Users className="w-4 h-4" />
-            {loadingAll ? 'Cargando...' : 'Ver todas'}
-          </button>
-        </div>
+  <button
+    type="button"
+    onClick={loadAll}
+    disabled={loadingAll}
+    className="border border-slate-300 hover:bg-slate-50 px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-1.5"
+  >
+    <Users className="w-4 h-4" />
+    {loadingAll ? 'Cargando...' : 'Ver todas'}
+  </button>
+</form>
+        <p className="text-xs text-slate-500 mt-2">
+          Escribí arriba para filtrar la lista. No hace falta apretar Buscar.
+        </p>
       </form>
 
       <div className="bg-white rounded-xl shadow-sm p-5">
