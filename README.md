@@ -14,6 +14,14 @@ Aplicación web para gestionar la temporada de pileta del Club Atlético Estudia
 - **Cierre de caja**: totales diarios por método de pago, con cierre definitivo habilitado solo para administradores.
 - **Roles**: administrador, encargado de pileta, control de ingreso y consulta (solo lectura).
 
+## PWA e instalación en dispositivos
+
+La aplicación puede instalarse desde navegadores compatibles como una aplicación independiente en celulares, tablets y computadoras. En Android/Chrome y navegadores compatibles se ofrece el botón **Instalar** cuando el navegador habilita la instalación. En iPhone/iPad, se utiliza la opción **Compartir → Añadir a pantalla de inicio** de Safari.
+
+El service worker conserva únicamente los recursos estáticos compilados y una pantalla informativa sin datos personales. **No almacena páginas autenticadas, ventas, permisos, sesiones ni respuestas de la API**. La validación de permisos, el registro de ingresos y las ventas siguen requiriendo conexión a Internet.
+
+Las actualizaciones de la aplicación se anuncian en pantalla y se aplican cuando el usuario pulsa **Actualizar**, para evitar recargas inesperadas durante una operación.
+
 ## Stack técnico
 
 - [TanStack Start](https://tanstack.com/start) (React 19) con ruteo basado en archivos
@@ -21,6 +29,7 @@ Aplicación web para gestionar la temporada de pileta del Club Atlético Estudia
 - Netlify Database (Postgres) + Drizzle ORM
 - Autenticación por cookie de sesión firmada (sin dependencias externas)
 - Despliegue en Netlify
+- PWA nativa con Web App Manifest y Service Worker (sin dependencia adicional)
 
 ## Desarrollo local
 
