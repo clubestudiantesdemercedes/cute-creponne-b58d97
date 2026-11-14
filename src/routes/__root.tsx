@@ -22,7 +22,7 @@ export const Route = createRootRoute({
     links: [
       { rel: 'icon', href: '/favicon.ico' },
       { rel: 'manifest', href: '/manifest.webmanifest' },
-      { rel: 'apple-touch-icon', href: '/pwa-icon-192.svg' },
+      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
     ],
   }),
   shellComponent: RootDocument,

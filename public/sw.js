@@ -5,6 +5,9 @@ const PRECACHE_URLS = [
   '/manifest.webmanifest',
   '/pwa-icon-192.svg',
   '/pwa-icon-512.svg',
+  '/pwa-192.png',
+  '/pwa-512.png',
+  '/apple-touch-icon.png',
 ]
 
 self.addEventListener('install', (event) => {
@@ -55,16 +58,16 @@ self.addEventListener('fetch', (event) => {
   if (!isBuildAsset) return
 
   event.respondWith(
-    caches.match(request).then((cached) => {
+    (async () => {
+      const cached = await caches.match(request)
       if (cached) return cached
 
-      return fetch(request).then((response) => {
-        if (response.ok && response.type === 'basic') {
-          const copy = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy))
-        }
-        return response
-      })
-    }),
+      const response = await fetch(request)
+      if (response.ok && response.type === 'basic') {
+        const cache = await caches.open(CACHE_NAME)
+        await cache.put(request, response.clone())
+      }
+      return response
+    })(),
   )
 })
