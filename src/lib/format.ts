@@ -36,22 +36,19 @@ export function formatDateAR(value: string | Date | null | undefined): string {
 export function formatDateTimeAR(value: string | Date | null | undefined): string {
   if (!value) return '-'
 
-  if (typeof value === 'string') {
-    const s = value.trim()
-
-    // Texto sin zona: "2026-08-25 10:14:00" → mostrar tal cual
-    const naive = s.match(
-      /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/,
-    )
-    if (naive && !/[zZ]|[+-]\d{2}:?\d{2}/.test(s)) {
-      return `${naive[3]}/${naive[2]}/${naive[1]}, ${naive[4]}:${naive[5]}`
-    }
+  // Los timestamps de PostgreSQL se serializan como ISO UTC desde el servidor.
+  // Convertimos esa hora a la zona local de Argentina para evitar mostrar +3 h.
+  let d: Date
+  if (value instanceof Date) {
+    d = value
+  } else {
+    const normalized = value.trim().replace(' ', 'T')
+    const hasTimezone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(normalized)
+    d = new Date(hasTimezone ? normalized : `${normalized}Z`)
   }
 
-  const d = typeof value === 'string' ? new Date(value) : value
   if (Number.isNaN(d.getTime())) return '-'
 
-  // ISO con Z o Date: usar UTC para no restar 3 h otra vez
   return new Intl.DateTimeFormat('es-AR', {
     day: '2-digit',
     month: '2-digit',
@@ -59,7 +56,7 @@ export function formatDateTimeAR(value: string | Date | null | undefined): strin
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: 'UTC',
+    timeZone: 'America/Argentina/Buenos_Aires',
   }).format(d)
 }
 
