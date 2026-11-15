@@ -31,7 +31,6 @@ function filterSalesForDate(
 function countFreeSales(rows: Array<{ status: string; paymentMethod: string; createdAt: unknown }>, date: string) {
   return rows.filter((s) => s.status !== 'anulada' && s.paymentMethod === 'sin_cargo' && toDateISO(s.createdAt) === date).length
 }
-}
 
 function buildTotals(
   rows: Array<{ totalAmount: number; paymentMethod: string }>,
