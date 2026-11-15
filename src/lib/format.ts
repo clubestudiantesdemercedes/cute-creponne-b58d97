@@ -19,7 +19,19 @@ export function formatDateAR(value: string | Date | null | undefined): string {
 
 export function formatDateTimeAR(value: string | Date | null | undefined): string {
   if (!value) return '-'
-  const d = typeof value === 'string' ? new Date(value) : value
+
+  // PostgreSQL timestamp without time zone puede llegar serializado como texto
+  // sin sufijo. En ese caso representa UTC y debe interpretarse como tal antes
+  // de convertirlo a la hora local de Argentina.
+  let d: Date
+  if (value instanceof Date) {
+    d = value
+  } else {
+    const normalized = value.trim().replace(' ', 'T')
+    const hasTimezone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(normalized)
+    d = new Date(hasTimezone ? normalized : `${normalized}Z`)
+  }
+
   return new Intl.DateTimeFormat('es-AR', {
     day: '2-digit',
     month: '2-digit',
