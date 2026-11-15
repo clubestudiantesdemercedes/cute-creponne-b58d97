@@ -23,9 +23,14 @@ function filterSalesForDate(
   date: string,
 ) {
   return rows.filter((s) => {
-    if (s.status === 'anulada') return false
+    if (s.status === 'anulada' || s.paymentMethod === 'sin_cargo') return false
     return toDateISO(s.createdAt) === date
   })
+}
+
+function countFreeSales(rows: Array<{ status: string; paymentMethod: string; createdAt: unknown }>, date: string) {
+  return rows.filter((s) => s.status !== 'anulada' && s.paymentMethod === 'sin_cargo' && toDateISO(s.createdAt) === date).length
+}
 }
 
 function buildTotals(
@@ -81,6 +86,7 @@ export const getCashSummary = createServerFn({ method: 'GET' })
       .from(sales)
 
     const daySales = filterSalesForDate(allSales, data.date)
+    const freeCount = countFreeSales(allSales, data.date)
     const { totals, totalAmount, salesCount } = buildTotals(daySales)
 
     const [closure] = await db
@@ -93,6 +99,7 @@ export const getCashSummary = createServerFn({ method: 'GET' })
       totals,
       totalAmount,
       salesCount,
+      freeCount,
       closure: serializeClosure(closure ?? null),
     }
   })

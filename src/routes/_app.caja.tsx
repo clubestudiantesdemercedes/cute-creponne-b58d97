@@ -64,6 +64,7 @@ function CajaPage() {
             </li>
           ))}
         </ul>
+        {summary.freeCount > 0 && <p className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">Cortesías registradas: <strong>{summary.freeCount}</strong> (no incluidas en la caja).</p>}
         <div className="flex justify-between items-center pt-3 mt-2 border-t border-slate-200">
           <span className="font-bold">Total ({summary.salesCount} ventas)</span>
           <span className="font-bold text-xl text-red-700">{formatARS(summary.totalAmount)}</span>

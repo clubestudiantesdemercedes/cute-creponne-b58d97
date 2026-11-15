@@ -29,6 +29,7 @@ type FormState = {
   notes: string
   maxBeneficiaries: string
   status: 'activo' | 'inactivo'
+  isFree: boolean
 }
 
 const emptyForm = (): FormState => ({
@@ -41,6 +42,7 @@ const emptyForm = (): FormState => ({
   notes: '',
   maxBeneficiaries: '',
   status: 'activo',
+  isFree: false,
 })
 
 function ConveniosPage() {
@@ -70,6 +72,7 @@ function ConveniosPage() {
       maxBeneficiaries:
         c.maxBeneficiaries != null ? String(c.maxBeneficiaries) : '',
       status: c.status === 'inactivo' ? 'inactivo' : 'activo',
+      isFree: !!c.isFree,
     })
     setError(null)
     setFormOpen(true)
@@ -104,6 +107,7 @@ function ConveniosPage() {
           startDate: form.startDate || null,
           endDate: form.endDate || null,
           status: form.status,
+          isFree: form.isFree,
           benefit: form.benefit.trim() || null,
           notes: form.notes.trim() || null,
           maxBeneficiaries: form.maxBeneficiaries
@@ -138,6 +142,7 @@ function ConveniosPage() {
         startDate: c.startDate,
         endDate: c.endDate,
         status: next,
+        isFree: !!c.isFree,
         benefit: c.benefit,
         notes: c.notes,
         maxBeneficiaries: c.maxBeneficiaries,
@@ -247,6 +252,10 @@ function ConveniosPage() {
               />
             </label>
 
+            <label className="sm:col-span-2 flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm">
+              <input type="checkbox" checked={form.isFree} onChange={(e) => setForm({ ...form, isFree: e.target.checked })} className="mt-0.5 h-4 w-4" />
+              <span><span className="block font-semibold text-violet-900">Convenio sin cargo</span><span className="block text-violet-800">Todos los períodos y planes quedan a $0. Se registra el beneficiario y su permiso, sin generar cobro ni movimiento de caja.</span></span>
+            </label>
             <label className="text-sm sm:col-span-2">
               <span className="text-slate-600">Beneficio</span>
               <input
@@ -331,6 +340,7 @@ function ConveniosPage() {
               <p className="text-sm text-slate-500">
                 {TYPES.find((t) => t.value === c.type)?.label ?? c.type}
               </p>
+              {c.isFree && <p className="text-sm font-semibold text-violet-700 mt-1">Convenio sin cargo — todos los planes</p>}
               {c.benefit && (
                 <p className="text-sm text-slate-600 mt-1">Beneficio: {c.benefit}</p>
               )}

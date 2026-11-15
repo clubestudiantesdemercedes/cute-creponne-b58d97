@@ -1,6 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import { db } from './db.server'
-import { prices } from '../../db/schema'
+import { prices, conventions } from '../../db/schema'
 
 /** Resolves the price to charge a person with a given condition for a plan. */
 export async function resolvePrice(
@@ -8,8 +8,11 @@ export async function resolvePrice(
   conditionType: 'socio' | 'deportista' | 'no_socio' | 'convenio',
   conventionId: number | null,
 ) {
-  // Precio de un convenio concreto (puede ser $0 = cortesía)
+  // Un convenio sin cargo aplica a todos los planes y períodos.
   if (conditionType === 'convenio' && conventionId) {
+    const [convention] = await db.select({ isFree: conventions.isFree }).from(conventions).where(eq(conventions.id, conventionId))
+    if (!convention) throw new Error('El convenio seleccionado no existe.')
+    if (convention.isFree) return 0
     const [specific] = await db
       .select()
       .from(prices)

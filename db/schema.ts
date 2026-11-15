@@ -94,6 +94,7 @@ export const conventions = pgTable('conventions', {
   startDate: date('start_date'),
   endDate: date('end_date'),
   status: text('status').notNull().default('activo'), // activo | inactivo
+  isFree: boolean('is_free').notNull().default(false),
   maxBeneficiaries: integer('max_beneficiaries'),
   benefit: text('benefit'),
   notes: text('notes'),

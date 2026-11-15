@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cae-natatorio-static-v1'
+const CACHE_NAME = 'cae-natatorio-static-v2'
 const OFFLINE_URL = '/offline.html'
 const PRECACHE_URLS = [
   OFFLINE_URL,
@@ -8,6 +8,7 @@ const PRECACHE_URLS = [
   '/pwa-192.png',
   '/pwa-512.png',
   '/apple-touch-icon.png',
+  '/escudo.png',
 ]
 
 self.addEventListener('install', (event) => {

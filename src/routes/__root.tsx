@@ -20,9 +20,9 @@ export const Route = createRootRoute({
       { name: 'apple-mobile-web-app-title', content: 'Natatorio CAE' },
     ],
     links: [
-      { rel: 'icon', href: '/favicon.ico' },
+      { rel: 'icon', type: 'image/png', href: '/escudo.png' },
       { rel: 'manifest', href: '/manifest.webmanifest' },
-      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+      { rel: 'apple-touch-icon', href: '/escudo.png' },
     ],
   }),
   shellComponent: RootDocument,

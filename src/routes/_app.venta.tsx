@@ -116,6 +116,8 @@ function VentaRapida() {
     conventionId: number | null,
   ) {
     if (conditionType === 'convenio' && conventionId) {
+      const convention = conventions.find((c) => c.id === conventionId)
+      if (convention?.isFree) return 0
       const specific = prices.find(
         (p) =>
           p.planId === planId &&
@@ -1757,8 +1759,8 @@ function ElegirPlan({
                     </p>
                   )}
 
-                  <p className="text-lg font-bold text-blue-900">
-                    {formatARS(price)}
+                  <p className={`text-lg font-bold ${price === 0 && persona.conditionType === 'convenio' ? 'text-violet-700' : 'text-blue-900'}`}>
+                    {price === 0 && persona.conditionType === 'convenio' ? 'SIN CARGO' : formatARS(price)}
                   </p>
                 </button>
                   {(() => {
@@ -1954,7 +1956,7 @@ function Carrito({
             planId: i.planId,
             isJubilado: !!i.isJubilado,
           })),
-          paymentMethod: method as any,
+          paymentMethod: total === 0 ? 'sin_cargo' : method as any,
         },
       })
 
@@ -2004,8 +2006,8 @@ function Carrito({
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="font-bold text-blue-900">
-                {formatARS(item.price)}
+              <span className={`font-bold ${item.price === 0 && item.conditionType === 'convenio' ? 'text-violet-700' : 'text-blue-900'}`}>
+                {item.price === 0 && item.conditionType === 'convenio' ? 'SIN CARGO' : formatARS(item.price)}
               </span>
 
               <button
@@ -2032,8 +2034,8 @@ function Carrito({
           TOTAL
         </span>
 
-        <span className="font-bold text-xl text-red-700">
-          {formatARS(total)}
+        <span className={`font-bold text-xl ${total === 0 ? 'text-violet-700' : 'text-red-700'}`}>
+          {total === 0 ? 'SIN CARGO' : formatARS(total)}
         </span>
       </div>
 
@@ -2046,6 +2048,7 @@ function Carrito({
 
       {cart.length > 0 && (
         <>
+          {total === 0 ? <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-3 py-3 text-sm text-violet-900"><p className="font-semibold">Registro sin cargo</p><p>Se generarán los permisos y códigos QR. Esta operación no genera un cobro ni movimiento de caja.</p></div> : <>
           <label className="block text-sm font-medium text-slate-700 mb-1">
             Método de pago
           </label>
@@ -2066,6 +2069,7 @@ function Carrito({
               </option>
             ))}
           </select>
+          </>}
 
           {error && (
             <p className="text-red-700 text-sm mb-3">
@@ -2186,10 +2190,7 @@ function VentaConfirmada({
           Venta confirmada
         </div>
 
-        <p className="text-sm text-slate-500">
-          N° de venta: {sale.saleNumber} — Total:{' '}
-          {formatARS(sale.totalAmount)}
-        </p>
+        <p className="text-sm text-slate-500">N° de registro: {sale.saleNumber} — {sale.totalAmount === 0 ? 'SIN CARGO' : `Total: ${formatARS(sale.totalAmount)}`}</p>
       </Card>
 
       {items.map((item) => {

@@ -39,6 +39,7 @@ const CreateSaleInput = z.object({
     'mercadopago',
     'tarjeta',
     'otro',
+    'sin_cargo',
   ]),
   notes: z.string().optional().nullable(),
 })
@@ -226,6 +227,10 @@ export const createSale = createServerFn({ method: 'POST' })
       }
     }
 
+    const isFreeSale = total === 0
+    if (isFreeSale && data.paymentMethod !== 'sin_cargo') throw new Error('Las operaciones sin cargo deben registrarse con el método Sin cargo.')
+    if (!isFreeSale && data.paymentMethod === 'sin_cargo') throw new Error('El método Sin cargo solo puede utilizarse cuando el total es $0.')
+
     // ------------------------------------------------------------
     // CREAR VENTA (TODO O NADA)
     // ------------------------------------------------------------
@@ -252,12 +257,10 @@ export const createSale = createServerFn({ method: 'POST' })
         )
         .returning()
 
-      await tx.insert(payments).values({
-        saleId: sale.id,
-        amount: total,
-        method: data.paymentMethod,
-        createdByUserId: user.userId,
-      })
+      // Las cortesías no generan movimientos en la tabla de pagos ni en caja.
+      if (!isFreeSale) {
+        await tx.insert(payments).values({ saleId: sale.id, amount: total, method: data.paymentMethod, createdByUserId: user.userId })
+      }
 
       const today = todayISO()
       const permitRows = []

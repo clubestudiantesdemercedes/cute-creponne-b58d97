@@ -15,7 +15,6 @@ import {
   Menu,
   X,
   LogOut,
-  Waves,
 } from 'lucide-react'
 import type { SessionUser } from '@/lib/session.server'
 import { logout } from '@/server/auth.functions'
@@ -57,7 +56,7 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
       {/* Mobile top bar */}
       <header className="md:hidden sticky top-0 z-30 bg-blue-900 text-white flex items-center justify-between px-4 py-3 shadow">
         <div className="flex items-center gap-2">
-          <Waves className="w-5 h-5 text-red-400" />
+          <img src="/escudo.png" alt="Escudo del Club Atlético Estudiantes" className="h-8 w-8 rounded-md bg-white object-contain p-0.5" />
           <span className="font-semibold text-sm">Natatorio Estudiantes</span>
         </div>
         <button onClick={() => setOpen(!open)} aria-label="Menú" className="p-1">
@@ -69,8 +68,8 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
       <nav
         className={`${open ? 'block' : 'hidden'} md:block md:w-60 shrink-0 bg-blue-900 text-white md:min-h-screen`}
       >
-        <div className="hidden md:flex items-center gap-2 px-5 py-5 border-b border-blue-800">
-          <Waves className="w-6 h-6 text-red-400" />
+        <div className="hidden md:flex items-center gap-3 px-5 py-5 border-b border-blue-800">
+          <img src="/escudo.png" alt="Escudo del Club Atlético Estudiantes" className="h-11 w-11 rounded-md bg-white object-contain p-1" />
           <div>
             <p className="font-bold leading-tight text-sm">Club Atlético Estudiantes</p>
             <p className="text-blue-300 text-xs">Natatorio</p>
