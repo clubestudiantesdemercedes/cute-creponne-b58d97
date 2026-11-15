@@ -73,6 +73,7 @@ type CartItem = {
   planId: number
   planName: string
   price: number
+  isFree?: boolean
   isJubilado?: boolean
 }
 
@@ -168,6 +169,7 @@ function VentaRapida() {
         planId,
         planName: plan.name,
         price,
+        isFree: conditionType === 'convenio' && !!conventions.find((c) => c.id === person.conventionId)?.isFree,
         isJubilado: !!person.isJubilado,
       },
     ])
@@ -338,6 +340,7 @@ function VentaRapida() {
         <ElegirPlan
           plans={plans}
           persona={step.person}
+          isFreeConvention={!!conventions.find((c) => c.id === step.person.conventionId)?.isFree}
           priceFor={priceFor}
           onBack={() =>
             setStep({
@@ -1651,6 +1654,7 @@ function ElegirConvenio({
 function ElegirPlan({
   plans,
   persona,
+  isFreeConvention,
   priceFor,
   onBack,
   onSelect,
@@ -1663,6 +1667,7 @@ function ElegirPlan({
     active: boolean
   }>
   persona: PersonData
+  isFreeConvention: boolean
   priceFor: (
     planId: number,
     conditionType: ConditionType,
@@ -1760,7 +1765,7 @@ function ElegirPlan({
                   )}
 
                   <p className={`text-lg font-bold ${price === 0 && persona.conditionType === 'convenio' ? 'text-violet-700' : 'text-blue-900'}`}>
-                    {price === 0 && persona.conditionType === 'convenio' ? 'SIN CARGO' : formatARS(price)}
+                    {isFreeConvention ? 'SIN CARGO' : formatARS(price)}
                   </p>
                 </button>
                   {(() => {
@@ -1956,7 +1961,7 @@ function Carrito({
             planId: i.planId,
             isJubilado: !!i.isJubilado,
           })),
-          paymentMethod: total === 0 ? 'sin_cargo' : method as any,
+          paymentMethod: cart.length > 0 && cart.every((item) => item.isFree) ? 'sin_cargo' : method as any,
         },
       })
 
@@ -2007,7 +2012,7 @@ function Carrito({
 
             <div className="flex items-center gap-3">
               <span className={`font-bold ${item.price === 0 && item.conditionType === 'convenio' ? 'text-violet-700' : 'text-blue-900'}`}>
-                {item.price === 0 && item.conditionType === 'convenio' ? 'SIN CARGO' : formatARS(item.price)}
+                {item.isFree ? 'SIN CARGO' : formatARS(item.price)}
               </span>
 
               <button
@@ -2035,7 +2040,7 @@ function Carrito({
         </span>
 
         <span className={`font-bold text-xl ${total === 0 ? 'text-violet-700' : 'text-red-700'}`}>
-          {total === 0 ? 'SIN CARGO' : formatARS(total)}
+          {cart.length > 0 && cart.every((item) => item.isFree) ? 'SIN CARGO' : formatARS(total)}
         </span>
       </div>
 
@@ -2048,7 +2053,7 @@ function Carrito({
 
       {cart.length > 0 && (
         <>
-          {total === 0 ? <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-3 py-3 text-sm text-violet-900"><p className="font-semibold">Registro sin cargo</p><p>Se generarán los permisos y códigos QR. Esta operación no genera un cobro ni movimiento de caja.</p></div> : <>
+          {cart.every((item) => item.isFree) ? <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-3 py-3 text-sm text-violet-900"><p className="font-semibold">Registro sin cargo</p><p>Se generarán los permisos y códigos QR. Esta operación no genera un cobro ni movimiento de caja.</p></div> : <>
           <label className="block text-sm font-medium text-slate-700 mb-1">
             Método de pago
           </label>
