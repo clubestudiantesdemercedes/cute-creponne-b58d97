@@ -1,6 +1,5 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
-import { Waves } from 'lucide-react'
 import { login, getCurrentUser } from '@/server/auth.functions'
 
 export const Route = createFileRoute('/login')({
@@ -40,8 +39,8 @@ function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-red-800 px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className="bg-blue-900 px-6 py-6 text-center">
-          <div className="mx-auto w-14 h-14 rounded-full bg-white flex items-center justify-center mb-3">
-            <Waves className="w-7 h-7 text-red-700" />
+          <div className="mx-auto w-16 h-16 rounded-xl bg-white flex items-center justify-center mb-3 p-1.5">
+            <img src="/escudo.png" alt="Escudo del Club Atlético Estudiantes" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-white font-bold text-lg leading-tight">
             Club Atlético Estudiantes
