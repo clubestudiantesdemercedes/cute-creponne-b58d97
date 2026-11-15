@@ -147,14 +147,14 @@ export const registerEntry = createServerFn({
       // Evitar duplicados
       // --------------------------------------------------------
 
-        const lastDay = String(last.occurredAt).slice(0, 10)
+      const last = await lastEntryFor(person.id, 'campo_deportes')
+      if (last && !data.force) {
+        const lastDay = last.occurredAt instanceof Date
+          ? last.occurredAt.toISOString().slice(0, 10)
+          : String(last.occurredAt).slice(0, 10)
         const todayDay = new Date().toISOString().slice(0, 10)
-
         if (lastDay === todayDay) {
-          const minutesAgo = Math.round(
-            (Date.now() - new Date(last.occurredAt).getTime()) /
-              60000,
-          )
+          const minutesAgo = Math.round((Date.now() - new Date(last.occurredAt).getTime()) / 60000)
           return {
             authorized: false as const,
             reason: 'duplicate' as const,
@@ -163,9 +163,9 @@ export const registerEntry = createServerFn({
             entryType: 'campo_deportes' as const,
           }
         }
+      }
 
-      // --------------------------------------------------------
-      // Registrar ingreso
+    // Registrar ingreso
       // --------------------------------------------------------
       //
       // permitId = null
@@ -288,24 +288,25 @@ export const registerEntry = createServerFn({
     // Evitar ingresos duplicados
     // ----------------------------------------------------------
 
-        const lastDay = String(last.occurredAt).slice(0, 10)
-        const todayDay = new Date().toISOString().slice(0, 10)
-
-        if (lastDay === todayDay) {
-          const minutesAgo = Math.round(
-            (Date.now() - new Date(last.occurredAt).getTime()) /
-              60000,
-          )
-          return {
-            authorized: false as const,
-            reason: 'duplicate' as const,
-            minutesAgo,
-            person,
-            entryType: 'campo_deportes' as const,
-          }
+    const last = await lastEntryFor(permitRow.person.id, 'pileta')
+    if (last && !data.force) {
+      const lastDay = last.occurredAt instanceof Date
+        ? last.occurredAt.toISOString().slice(0, 10)
+        : String(last.occurredAt).slice(0, 10)
+      const todayDay = new Date().toISOString().slice(0, 10)
+      if (lastDay === todayDay) {
+        const minutesAgo = Math.round((Date.now() - new Date(last.occurredAt).getTime()) / 60000)
+        return {
+          authorized: false as const,
+          reason: 'duplicate' as const,
+          minutesAgo,
+          person: permitRow.person,
+          permit: permitRow.permit,
+          plan: permitRow.plan,
         }
+      }
+    }
 
-    // ----------------------------------------------------------
     // Registrar ingreso a pileta
     // ----------------------------------------------------------
 

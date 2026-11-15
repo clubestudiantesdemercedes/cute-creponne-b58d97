@@ -10,6 +10,7 @@ import {
 } from '../../db/schema'
 import { requireUser } from './auth.server'
 import { todayISO, daysUntil } from '@/lib/format'
+import { computeLiveStatus } from '@/lib/permit-status'
 
 // ============================================================
 // ESTADO DEL PERMISO

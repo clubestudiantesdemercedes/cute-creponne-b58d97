@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="38" fill="#0c2b5b"/>
+  <circle cx="96" cy="88" r="65" fill="#fff"/>
+  <circle cx="96" cy="88" r="56" fill="#0c2b5b"/>
+  <path d="M42 76h108v25H42z" fill="#cd2337"/>
+  <text x="96" y="99" text-anchor="middle" font-family="Arial,sans-serif" font-size="31" font-weight="800" fill="#fff">CAE</text>
+  <text x="96" y="132" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="1" fill="#fff">NATATORIO</text>
+</svg>
