@@ -199,7 +199,7 @@ function VentaRapida() {
               className="text-sm font-semibold bg-blue-900 text-white px-4 py-2 rounded-lg"
             >
               Ver carrito ({cart.length}) —{' '}
-              {formatARS(total)}
+              {cart.every((item) => item.isFree) ? 'Sin cargo' : formatARS(total)}
             </button>
           )}
       </div>
@@ -1984,7 +1984,7 @@ function Carrito({
   return (
     <Card>
       <h2 className="font-bold text-lg mb-3">
-        Resumen de la venta
+        {cart.length > 0 && cart.every((item) => item.isFree) ? 'Resumen del registro' : 'Resumen de la venta'}
       </h2>
 
       <ul className="divide-y divide-slate-100">
@@ -2089,7 +2089,7 @@ function Carrito({
           >
             {loading
               ? 'Confirmando...'
-              : 'CONFIRMAR VENTA'}
+              : cart.every((item) => item.isFree) ? 'CONFIRMAR REGISTRO' : 'CONFIRMAR VENTA'}
           </button>
         </>
       )}
@@ -2192,7 +2192,7 @@ function VentaConfirmada({
       <Card>
         <div className="flex items-center gap-2 text-emerald-700 font-bold text-lg mb-1">
           <CheckCircle2 className="w-6 h-6" />
-          Venta confirmada
+          {sale.totalAmount === 0 ? 'Registro confirmado' : 'Venta confirmada'}
         </div>
 
         <p className="text-sm text-slate-500">N° de registro: {sale.saleNumber} — {sale.totalAmount === 0 ? 'SIN CARGO' : `Total: ${formatARS(sale.totalAmount)}`}</p>
