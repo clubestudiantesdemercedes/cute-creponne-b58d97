@@ -3,17 +3,8 @@ import { eq, desc } from 'drizzle-orm'
 import { db } from '../../db'
 import { permits, people, plans, entries, conventions } from '../../db/schema'
 import { requireUser } from './auth.server'
-import { todayISO, daysUntil } from '@/lib/format'
-
-export type PermitLiveStatus = 'activo' | 'vencido' | 'pendiente' | 'anulado'
-
-export function computeLiveStatus(permit: { status: string; startDate: string; endDate: string }): PermitLiveStatus {
-  if (permit.status === 'anulado') return 'anulado'
-  const today = todayISO()
-  if (permit.endDate < today) return 'vencido'
-  if (permit.startDate > today) return 'pendiente'
-  return 'activo'
-}
+import { daysUntil } from '@/lib/format'
+import { computeLiveStatus } from '@/lib/permit-status'
 
 export const verifyPermitByCode = createServerFn({ method: 'GET' })
   .inputValidator((data: { code: string }) => data)
