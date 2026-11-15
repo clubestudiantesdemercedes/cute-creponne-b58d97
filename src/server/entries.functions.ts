@@ -4,17 +4,7 @@ import { z } from 'zod'
 import { db } from '../../db'
 import { permits, people, plans, entries, auditLogs } from '../../db/schema'
 import { requireUser } from './auth.server'
-import { computeLiveStatus } from './permits.functions'
-
-async function lastEntryFor(personId: number) {
-  const [row] = await db
-    .select()
-    .from(entries)
-    .where(eq(entries.personId, personId))
-    .orderBy(desc(entries.occurredAt))
-    .limit(1)
-  return row ?? null
-}
+import { computeLiveStatus } from '@/lib/permit-status'
 
 const RegisterEntryInput = z.object({
   code: z.string().optional(),
@@ -67,9 +57,14 @@ export const registerEntry = createServerFn({ method: 'POST' })
       }
     }
 
-    const last = await lastEntryFor(permitRow.person.id)
-    if (last && !data.force) {
-      const minutesAgo = (Date.now() - new Date(last.occurredAt).getTime()) / 60000
+    const [lastEntry] = await db
+      .select()
+      .from(entries)
+      .where(eq(entries.personId, permitRow.person.id))
+      .orderBy(desc(entries.occurredAt))
+      .limit(1)
+    if (lastEntry && !data.force) {
+      const minutesAgo = (Date.now() - new Date(lastEntry.occurredAt).getTime()) / 60000
       if (minutesAgo < 30) {
         return {
           authorized: false as const,
