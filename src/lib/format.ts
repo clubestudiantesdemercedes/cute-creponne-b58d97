@@ -44,7 +44,7 @@ export function formatDateTimeAR(value: string | Date | null | undefined): strin
   } else {
     const normalized = value.trim().replace(' ', 'T')
     const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
-    d = new Date(hasTimezone ? normalized : \`\${normalized}Z\`)
+    d = new Date(hasTimezone ? normalized : `${normalized}Z`)
   }
 
   if (Number.isNaN(d.getTime())) return '-'
