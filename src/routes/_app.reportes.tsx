@@ -312,7 +312,7 @@ function ReportesPage() {
                     </td>
                     <td className="py-2">{formatDateTimeAR(s.createdAt)}</td>
                     <td className="py-2">{formatARS(s.totalAmount)}</td>
-                    <td className="py-2 capitalize">{s.paymentMethod}</td>
+                    <td className="py-2">{s.paymentMethod === 'sin_cargo' ? 'Sin cargo' : s.paymentMethod}</td>
                     <td className="py-2 capitalize">{s.status}</td>
                   </tr>
                   {openSaleId === s.id && (
