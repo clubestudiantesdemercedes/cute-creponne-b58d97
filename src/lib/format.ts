@@ -28,7 +28,7 @@ export function formatDateTimeAR(value: string | Date | null | undefined): strin
     d = value
   } else {
     const normalized = value.trim().replace(' ', 'T')
-    const hasTimezone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(normalized)
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
     d = new Date(hasTimezone ? normalized : `${normalized}Z`)
   }
 
