@@ -68,12 +68,13 @@ export const exportMembersCsv = createServerFn({ method: 'GET' })
       .from(members)
       .innerJoin(people, eq(members.personId, people.id))
     return toCsv(
-      ['numero_socio', 'dni', 'nombre', 'apellido', 'estado_socio'],
+      ['numero_socio', 'dni', 'nombre', 'apellido', 'fecha_alta_socio', 'estado_socio'],
       rows.map((r) => [
         r.member.memberNumber,
         r.person.dni,
         r.person.firstName,
         r.person.lastName,
+        r.member.memberSince,
         r.member.memberStatus,
       ]),
     )
