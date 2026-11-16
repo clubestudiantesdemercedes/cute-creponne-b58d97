@@ -4,7 +4,7 @@ export type SessionUser = {
   userId: number
   username: string
   fullName: string
-  role: 'admin' | 'encargado' | 'control_ingreso' | 'consulta'
+  role: 'admin' | 'operador'
 }
 
 type SessionData = {
