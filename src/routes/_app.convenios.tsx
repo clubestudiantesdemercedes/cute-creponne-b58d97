@@ -172,7 +172,8 @@ function ConveniosPage() {
       </div>
 
       {formOpen && (
-        <form onSubmit={save} className="bg-white rounded-xl shadow-sm p-5 space-y-3 border border-blue-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 sm:p-6">
+        <form onSubmit={save} className="bg-white rounded-xl shadow-2xl p-5 space-y-3 border border-blue-100 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-slate-800">
               {isEdit ? 'Editar convenio' : 'Nuevo convenio'}
@@ -324,6 +325,7 @@ function ConveniosPage() {
             </button>
           </div>
         </form>
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-4">
