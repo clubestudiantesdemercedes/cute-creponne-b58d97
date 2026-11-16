@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Plus, UserCog, Pencil, X } from 'lucide-react'
-import { listUsers, createUser, updateUser } from '@/server/users.functions'
+import { listUsers, createUser, updateUser, deactivateOtherUsers } from '@/server/users.functions'
 import { ROLE_LABELS } from '@/lib/roles'
 
 export const Route = createFileRoute('/_app/usuarios')({
@@ -59,6 +59,21 @@ function UsuariosPage() {
     }
   }
 
+  async function disableOtherAccounts() {
+    const confirmed = window.confirm('Se deshabilitarán todas las cuentas excepto jsiri. Las ventas y registros históricos se conservarán. ¿Querés continuar?')
+    if (!confirmed) return
+    setError('')
+    setSaving(true)
+    try {
+      const result = await deactivateOtherUsers()
+      alert('Se deshabilitaron ' + result.disabledCount + ' cuentas. jsiri continúa activo como administrador general.')
+      window.location.reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron deshabilitar las otras cuentas.')
+      setSaving(false)
+    }
+  }
+
   async function toggleActive(user: UserRow) {
     setError('')
     try {
@@ -71,13 +86,18 @@ function UsuariosPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <UserCog className="w-6 h-6" /> Usuarios
         </h1>
-        <button onClick={() => { setCreating(!creating); setEditing(null); setError('') }} className="flex items-center gap-1.5 bg-blue-900 text-white px-3 py-2 rounded-lg text-sm font-semibold">
-          <Plus className="w-4 h-4" /> Nuevo usuario
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={disableOtherAccounts} disabled={saving} className="px-3 py-2 rounded-lg text-xs font-semibold border border-amber-300 text-amber-800 bg-amber-50 disabled:opacity-50">
+            Dejar solo jsiri activo
+          </button>
+          <button onClick={() => { setCreating(!creating); setEditing(null); setError('') }} className="flex items-center gap-1.5 bg-blue-900 text-white px-3 py-2 rounded-lg text-sm font-semibold">
+            <Plus className="w-4 h-4" /> Nuevo usuario
+          </button>
+        </div>
       </div>
 
       {error && <p role="alert" className="rounded-lg bg-red-50 border border-red-200 text-red-700 p-3 text-sm">{error}</p>}
