@@ -158,7 +158,7 @@ function SociosPage() {
       setHistory(result)
     } catch (err) {
       setHistory(null)
-      setFormError(err instanceof Error ? err.message : 'No se pudo cargar el historial.')
+      window.alert(err instanceof Error ? err.message : 'No se pudo cargar el historial.')
     } finally {
       setHistoryLoading(false)
     }
