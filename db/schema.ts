@@ -17,7 +17,7 @@ export const users = pgTable('users', {
   username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   fullName: text('full_name').notNull(),
-  role: text('role').notNull(), // admin | encargado | control_ingreso | consulta
+  role: text('role').notNull(), // admin | operador
   active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
@@ -154,6 +154,10 @@ export const sales = pgTable('sales', {
   paymentMethod: text('payment_method').notNull(), // efectivo | transferencia | mercadopago | tarjeta | otro
   status: text('status').notNull().default('pagada'), // pagada | anulada
   notes: text('notes'),
+  voidReason: text('void_reason'),
+  voidNotes: text('void_notes'),
+  voidedAt: timestamp('voided_at'),
+  voidedByUserId: integer('voided_by_user_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
