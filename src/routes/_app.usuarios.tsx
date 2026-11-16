@@ -9,17 +9,15 @@ export const Route = createFileRoute('/_app/usuarios')({
   component: UsuariosPage,
 })
 
-const ROLES: { value: 'admin' | 'encargado' | 'control_ingreso' | 'consulta'; label: string }[] = [
-  { value: 'admin', label: 'Administrador' },
-  { value: 'encargado', label: 'Encargado de pileta' },
-  { value: 'control_ingreso', label: 'Control de ingreso' },
-  { value: 'consulta', label: 'Consulta' },
+const ROLES: { value: 'admin' | 'operador'; label: string }[] = [
+  { value: 'admin', label: 'Administrador general' },
+  { value: 'operador', label: 'Operador' },
 ]
 
 function UsuariosPage() {
   const users = Route.useLoaderData()
   const [creating, setCreating] = useState(false)
-  const [form, setForm] = useState({ username: '', password: '', fullName: '', role: 'encargado' as (typeof ROLES)[number]['value'] })
+  const [form, setForm] = useState({ username: '', password: '', fullName: '', role: 'operador' as (typeof ROLES)[number]['value'] })
 
   async function create(e: React.FormEvent) {
     e.preventDefault()
