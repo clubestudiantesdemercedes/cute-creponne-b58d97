@@ -116,7 +116,8 @@ function UsuariosPage() {
       )}
 
       {editing && (
-        <form onSubmit={saveEdit} className="bg-white rounded-xl shadow-sm p-5 space-y-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 sm:p-6">
+        <form onSubmit={saveEdit} className="bg-white rounded-xl shadow-2xl p-5 space-y-3 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between"><h2 className="font-semibold text-slate-800">Editar usuario: {editing.fullName}</h2><button type="button" onClick={() => setEditing(null)} aria-label="Cerrar edición" className="p-1 text-slate-500"><X className="w-5 h-5" /></button></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="text-sm"><span className="text-slate-600">Usuario *</span><input required minLength={3} value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" /></label>
@@ -127,6 +128,7 @@ function UsuariosPage() {
           <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={editForm.active} onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })} /> Cuenta activa</label>
           <div className="flex gap-2"><button disabled={saving} className="bg-blue-900 disabled:opacity-60 text-white font-semibold px-4 py-2 rounded-lg text-sm">{saving ? 'Guardando...' : 'Guardar cambios'}</button><button type="button" onClick={() => setEditing(null)} className="px-4 py-2 rounded-lg text-sm border">Cancelar</button></div>
         </form>
+        </div>
       )}
 
       <div className="bg-white rounded-xl shadow-sm divide-y divide-slate-100">
