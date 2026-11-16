@@ -73,6 +73,13 @@ export const updateUser = createServerFn({ method: 'POST' })
       throw new Error('No podés desactivar tu propia cuenta ni quitarte el rol de administrador.')
     }
 
+    if (target.role === 'admin' && target.active && (!data.active || data.role !== 'admin')) {
+      const activeAdmins = await db.select({ id: users.id, active: users.active }).from(users).where(eq(users.role, 'admin'))
+      if (activeAdmins.filter((admin) => admin.active).length <= 1) {
+        throw new Error('No podés quitar o desactivar al único administrador general activo.')
+      }
+    }
+
     const updateValues: Record<string, unknown> = {
       username,
       fullName: data.fullName,
