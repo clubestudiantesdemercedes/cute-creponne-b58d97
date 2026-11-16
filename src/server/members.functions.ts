@@ -356,6 +356,7 @@ export const confirmMembersImport = createServerFn({ method: 'POST' })
           .update(members)
           .set({
             memberNumber,
+            memberSince: row.memberSince,
             memberStatus: row.status,
             category: row.category ?? 'general',
             updatedAt: new Date(),
