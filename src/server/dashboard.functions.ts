@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
-import { ne } from 'drizzle-orm'
+import { ne, eq } from 'drizzle-orm'
 import { db } from './db.server'
-import { sales, entries, permits } from '../../db/schema'
+import { sales, entries, permits, people, members } from '../../db/schema'
 import { requireUser } from './auth.server'
 import { todayISO } from '@/lib/format'
 
@@ -35,22 +35,31 @@ export const getDashboardStats = createServerFn({ method: 'GET' }).handler(async
   const today = todayISO()
 
   // Solo campos necesarios y serializables (sin devolver filas crudas con Date).
-  const allPermits = await db
+  const permitRows = await db
     .select({
+      personId: permits.personId,
       status: permits.status,
       startDate: permits.startDate,
       endDate: permits.endDate,
-      conditionType: permits.conditionType,
+      personStatus: people.status,
+      memberStatus: members.memberStatus,
     })
     .from(permits)
+    .innerJoin(people, eq(permits.personId, people.id))
+    .leftJoin(members, eq(members.personId, people.id))
     .where(ne(permits.status, 'anulado'))
 
-  const activePermits = allPermits.filter((p) => computeLiveStatus(p) === 'activo')
-
-    const bySocio = activePermits.filter((p) => p.conditionType === 'socio').length
-    const byNoSocio = activePermits.filter(
-      (p) => p.conditionType === 'no_socio' || p.conditionType === 'convenio',
-    ).length
+  // Contar personas únicas, no permisos: una persona puede tener varios permisos.
+  const activePermits = permitRows.filter(
+    (p) => p.personStatus === 'activo' && computeLiveStatus(p) === 'activo',
+  )
+  const enabledPeople = new Set(activePermits.map((p) => p.personId))
+  const enabledMembers = new Set(
+    activePermits.filter((p) => p.memberStatus === 'activo').map((p) => p.personId),
+  )
+  const enabledNonMembers = new Set(
+    activePermits.filter((p) => p.memberStatus !== 'activo').map((p) => p.personId),
+  )
 
   // No filtramos por Date en SQL (rompe con netlify-db). Traemos montos/fechas y filtramos en JS.
   const allSales = await db
@@ -78,9 +87,9 @@ export const getDashboardStats = createServerFn({ method: 'GET' }).handler(async
 
   // Solo números/strings: siempre serializable para TanStack Start.
     return {
-      personasHabilitadas: activePermits.length,
-      socios: bySocio,
-      noSocios: byNoSocio,
+      personasHabilitadas: enabledPeople.size,
+      socios: enabledMembers.size,
+      noSocios: enabledNonMembers.size,
       ventasHoy: salesToday.length,
       ingresosHoy: entriesToday.length,
       recaudacionHoy,
