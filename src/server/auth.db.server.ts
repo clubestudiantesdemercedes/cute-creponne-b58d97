@@ -23,6 +23,6 @@ export async function authenticateUser(username: string, password: string) {
     userId: user.id,
     username: user.username,
     fullName: user.fullName,
-    role: user.role as 'admin' | 'encargado' | 'control_ingreso' | 'consulta',
+    role: user.role === 'admin' ? 'admin' : 'operador',
   }
 }
