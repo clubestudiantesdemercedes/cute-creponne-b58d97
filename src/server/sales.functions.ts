@@ -12,6 +12,8 @@ import {
   members,
   auditLogs,
   entries,
+  cashClosures,
+  users,
 } from '../../db/schema'
 import { requireUser } from './auth.server'
 import {
@@ -166,7 +168,7 @@ export const createSale = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireUser()
 
-    if (user.role !== 'admin' && user.role !== 'encargado') {
+    if (user.role !== 'admin' && user.role !== 'operador') {
       throw new Error('No tenés permisos para registrar ventas.')
     }
 
@@ -410,8 +412,10 @@ export const listSales = createServerFn({ method: 'GET' })
         status: sales.status,
         notes: sales.notes,
         createdAt: sales.createdAt,
+        createdByName: users.fullName,
       })
       .from(sales)
+      .leftJoin(users, eq(sales.createdByUserId, users.id))
       .orderBy(desc(sales.createdAt))
       .limit(500)
 
@@ -436,6 +440,7 @@ export const listSales = createServerFn({ method: 'GET' })
         s.createdAt instanceof Date
           ? s.createdAt.toISOString()
           : String(s.createdAt),
+      createdByName: s.createdByName ?? 'Usuario',
     }))
   })
 
@@ -479,9 +484,14 @@ export const getSaleDetail = createServerFn({ method: 'GET' })
       )
       .where(eq(saleItems.saleId, sale.id))
 
+    const paymentRows = await db.select().from(payments).where(eq(payments.saleId, sale.id))
+    const [creator] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, sale.createdByUserId))
+
     return {
       sale,
       items,
+      payments: paymentRows,
+      createdByName: creator?.fullName ?? 'Usuario',
     }
   })
 
@@ -490,88 +500,68 @@ export const getSaleDetail = createServerFn({ method: 'GET' })
 // ============================================================
 
 export const voidSale = createServerFn({ method: 'POST' })
-  .inputValidator((data: { saleId: number }) => data)
+  .inputValidator(z.object({
+    saleId: z.number(),
+    reason: z.enum(['error_importe', 'error_periodo', 'error_persona', 'venta_duplicada', 'error_categoria_convenio', 'otro']),
+    notes: z.string().max(1000).optional().nullable(),
+  }).superRefine((data, ctx) => {
+    if (data.reason === 'otro' && !data.notes?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Explicá el motivo cuando seleccionás «Otro».', path: ['notes'] })
+    }
+  }))
   .handler(async ({ data }) => {
     const user = await requireUser()
 
-    if (user.role !== 'admin') {
-      throw new Error(
-        'Solo un administrador puede anular ventas.',
-      )
-    }
+    await db.transaction(async (tx) => {
+      const [sale] = await tx.select().from(sales).where(eq(sales.id, data.saleId))
+      if (!sale) throw new Error('La venta no existe.')
+      if (sale.status === 'anulada') throw new Error('Esta venta ya está anulada.')
 
-    // ----------------------------------------------------------
-    // Comprobar que la venta existe
-    // ----------------------------------------------------------
-
-    const [sale] = await db
-      .select()
-      .from(sales)
-      .where(eq(sales.id, data.saleId))
-
-    if (!sale) {
-      throw new Error('La venta no existe.')
-    }
-
-    if (sale.status === 'anulada') {
-      return {
-        ok: true,
+      if (user.role !== 'admin' && sale.createdByUserId !== user.userId) {
+        throw new Error('Solo podés anular las ventas que registraste.')
       }
-    }
 
-    // ----------------------------------------------------------
-    // ANULAR VENTA
-    // ----------------------------------------------------------
+      const saleDate = sale.createdAt instanceof Date
+        ? sale.createdAt.toISOString().slice(0, 10)
+        : String(sale.createdAt).slice(0, 10)
+      const [closure] = await tx.select().from(cashClosures).where(eq(cashClosures.closureDate, saleDate))
+      if (closure?.status === 'cerrada') {
+        throw new Error('No se puede anular esta venta porque la caja de ese día ya está cerrada.')
+      }
 
-    await db
-      .update(sales)
-      .set({
+      const now = new Date()
+      await tx.update(sales).set({
         status: 'anulada',
+        voidReason: data.reason,
+        voidNotes: data.notes?.trim() || null,
+        voidedAt: now,
+        voidedByUserId: user.userId,
+      }).where(eq(sales.id, sale.id))
+
+      await tx.update(payments).set({ status: 'anulado' }).where(eq(payments.saleId, sale.id))
+
+      const itemRows = await tx.select({ id: saleItems.id }).from(saleItems).where(eq(saleItems.saleId, sale.id))
+      const itemIds = itemRows.map((row) => row.id)
+      if (itemIds.length) {
+        await tx.update(permits).set({ status: 'anulado' }).where(inArray(permits.saleItemId, itemIds))
+      }
+
+      // Los ingresos ya registrados se conservan como hechos históricos.
+      await tx.insert(auditLogs).values({
+        userId: user.userId,
+        action: 'anular_venta',
+        entityType: 'sale',
+        entityId: String(sale.id),
+        details: {
+          saleNumber: sale.saleNumber,
+          amount: sale.totalAmount,
+          paymentMethod: sale.paymentMethod,
+          reason: data.reason,
+          notes: data.notes?.trim() || null,
+          permitsVoided: itemIds.length,
+        },
       })
-      .where(eq(sales.id, data.saleId))
-
-    // ----------------------------------------------------------
-    // BUSCAR ITEMS
-    // ----------------------------------------------------------
-
-    const itemRows = await db
-      .select({
-        id: saleItems.id,
-      })
-      .from(saleItems)
-      .where(eq(saleItems.saleId, data.saleId))
-
-    const itemIds = itemRows.map((row) => row.id)
-
-    // ----------------------------------------------------------
-    // ANULAR PERMISOS
-    // ----------------------------------------------------------
-
-    if (itemIds.length) {
-      await db
-        .update(permits)
-        .set({
-          status: 'anulado',
-        })
-        .where(inArray(permits.saleItemId, itemIds))
-    }
-
-    // ----------------------------------------------------------
-    // IMPORTANTE:
-    //
-    // NO eliminamos ni anulamos entries existentes.
-    //
-    // Un ingreso es un hecho histórico.
-    // ----------------------------------------------------------
-
-    await db.insert(auditLogs).values({
-      userId: user.userId,
-      action: 'anular_venta',
-      entityType: 'sale',
-      entityId: String(data.saleId),
     })
 
-    return {
-      ok: true,
-    }
+    return { ok: true }
   })
