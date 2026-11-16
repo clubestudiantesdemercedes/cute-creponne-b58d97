@@ -56,7 +56,6 @@ function ConveniosPage() {
     setForm(emptyForm())
     setError(null)
     setFormOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function startEdit(c: (typeof conventions)[number]) {
@@ -76,7 +75,6 @@ function ConveniosPage() {
     })
     setError(null)
     setFormOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function closeForm() {
