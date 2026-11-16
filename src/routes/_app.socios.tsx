@@ -34,6 +34,7 @@ type FormState = {
   memberId?: number
   personId?: number
   memberNumber: string
+  memberSince: string
   dni: string
   firstName: string
   lastName: string
@@ -49,6 +50,7 @@ type FormState = {
 function emptyForm(): FormState {
   return {
     memberNumber: '',
+    memberSince: '',
     dni: '',
     firstName: '',
     lastName: '',
@@ -118,6 +120,7 @@ function SociosPage() {
       memberId: m.member.id,
       personId: m.person.id,
       memberNumber: m.member.memberNumber,
+      memberSince: m.member.memberSince ?? '',
       dni: m.person.dni,
       firstName: m.person.firstName,
       lastName: m.person.lastName,
@@ -154,6 +157,7 @@ function SociosPage() {
           memberId: form.memberId,
           personId: form.personId,
           memberNumber: form.memberNumber.trim(),
+          memberSince: form.memberSince,
           dni: form.dni.trim(),
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
@@ -304,6 +308,16 @@ function SociosPage() {
               />
             </label>
             <label className="text-sm">
+              <span className="text-slate-600">Fecha de alta como socio *</span>
+              <input
+                required
+                type="date"
+                value={form.memberSince}
+                onChange={(e) => setForm({ ...form, memberSince: e.target.value })}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="text-sm">
               <span className="text-slate-600">DNI *</span>
               <input
                 required
@@ -449,7 +463,7 @@ function SociosPage() {
           <Upload className="w-4 h-4" /> Importar base de socios (CSV)
         </h2>
         <p className="text-sm text-slate-500 mb-3">
-          Util al inicio de la temporada. Columnas: socio, dni, nombre, apellido, categoria (general o deportista), y opcionales: nacimiento, telefono, email, domicilio, estado.
+          Util al inicio de la temporada. Columnas obligatorias: socio, alta (fecha de alta como socio), dni, nombre y apellido. Opcionales: categoria (general o deportista), nacimiento, telefono, email, domicilio y estado.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -594,7 +608,7 @@ function SociosPage() {
                 <th className="py-2 pr-2">Nombre</th>
                 <th className="py-2 pr-2">DNI</th>
                 <th className="py-2 pr-2">Telefono</th>
-                <th className="py-2 pr-2">Alta</th>
+                <th className="py-2 pr-2">Alta como socio</th>
                 <th className="py-2 pr-2">Estado</th>
                 <th className="py-2 pr-2">Categoria</th>
                 <th className="py-2 pr-2">Convenio</th>
@@ -611,7 +625,7 @@ function SociosPage() {
                   <td className="py-2 pr-2">{m.person.dni}</td>
                   <td className="py-2 pr-2">{m.person.phone ?? '-'}</td>
                   <td className="py-2 pr-2 text-xs text-slate-500">
-                    {formatMemberAlta(m.member.createdAt)}
+                    {formatMemberAlta(m.member.memberSince)}
                   </td>
                   <td className="py-2 pr-2">
                     {m.member.memberStatus === 'activo' ? (
