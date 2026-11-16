@@ -182,14 +182,21 @@ export const exportPermitsCsv = createServerFn({ method: 'GET' })
   .handler(async ({ data }) => {
     await requireUser()
     const rows = await db
-      .select({ permit: permits, person: people, plan: plans })
+      .select({
+        permit: permits,
+        person: people,
+        plan: plans,
+        saleCreatedAt: sales.createdAt,
+      })
       .from(permits)
       .innerJoin(people, eq(permits.personId, people.id))
       .innerJoin(plans, eq(permits.planId, plans.id))
+      .innerJoin(saleItems, eq(permits.saleItemId, saleItems.id))
+      .innerJoin(sales, eq(saleItems.saleId, sales.id))
 
-    // Filtra por fecha de vencimiento del permiso
+    // Filtra por la fecha de la venta que generó el permiso, no por su vencimiento.
     const filtered = rows.filter((r) =>
-      inDateRange(r.permit.endDate, data.dateFrom, data.dateTo),
+      inDateRange(toDateISO(r.saleCreatedAt), data.dateFrom, data.dateTo),
     )
 
     return toCsv(
