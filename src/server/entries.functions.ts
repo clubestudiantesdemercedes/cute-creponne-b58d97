@@ -70,8 +70,7 @@ export const registerEntry = createServerFn({
     if (
       ![
         'admin',
-        'encargado',
-        'control_ingreso',
+        'operador',
       ].includes(user.role)
     ) {
       throw new Error(
