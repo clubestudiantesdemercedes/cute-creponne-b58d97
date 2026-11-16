@@ -419,6 +419,9 @@ export const listSales = createServerFn({ method: 'GET' })
       .orderBy(desc(sales.createdAt))
       .limit(500)
 
+    const closedRows = await db.select({ closureDate: cashClosures.closureDate }).from(cashClosures).where(eq(cashClosures.status, 'cerrada'))
+    const closedDates = new Set(closedRows.map((row) => String(row.closureDate).slice(0, 10)))
+
     const filtered = rows.filter((s) => {
       const day = s.createdAt instanceof Date
         ? s.createdAt.toISOString().slice(0, 10)
@@ -441,6 +444,7 @@ export const listSales = createServerFn({ method: 'GET' })
           ? s.createdAt.toISOString()
           : String(s.createdAt),
       createdByName: s.createdByName ?? 'Usuario',
+      cashClosed: closedDates.has(s.createdAt instanceof Date ? s.createdAt.toISOString().slice(0, 10) : String(s.createdAt).slice(0, 10)),
     }))
   })
 
