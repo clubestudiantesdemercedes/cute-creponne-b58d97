@@ -17,25 +17,8 @@ export const login = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const username = data.username.trim().toLowerCase()
 
-    // Usuario administrador de prueba.
-    if (username === 'admin' && data.password === 'estudiantes2026') {
-      const session = await getAppSession()
-
-      await session.update({
-        user: {
-          userId: 1,
-          username: 'admin',
-          fullName: 'Administrador de prueba',
-          role: 'admin',
-        },
-      })
-
-      return { ok: true as const }
-    }
-
-    // La base de datos se carga únicamente dentro del código servidor.
+    // La autenticación se realiza exclusivamente contra los usuarios registrados en la base de datos.
     const { authenticateUser } = await import('./auth.db.server')
-
     const user = await authenticateUser(username, data.password)
 
     if (!user) {
@@ -46,10 +29,7 @@ export const login = createServerFn({ method: 'POST' })
     }
 
     const session = await getAppSession()
-
-    await session.update({
-      user,
-    })
+    await session.update({ user })
 
     return { ok: true as const }
   })
@@ -57,6 +37,5 @@ export const login = createServerFn({ method: 'POST' })
 export const logout = createServerFn({ method: 'POST' }).handler(async () => {
   const session = await getAppSession()
   await session.clear()
-
   return { ok: true as const }
 })
