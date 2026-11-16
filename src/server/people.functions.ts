@@ -288,7 +288,7 @@ export const setPersonStatus = createServerFn({
 
     if (
       user.role !== 'admin' &&
-      user.role !== 'encargado'
+      user.role !== 'operador'
     ) {
       throw new Error(
         'No tenés permisos para modificar el estado de la persona.',
