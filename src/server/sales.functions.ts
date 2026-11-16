@@ -490,12 +490,16 @@ export const getSaleDetail = createServerFn({ method: 'GET' })
 
     const paymentRows = await db.select().from(payments).where(eq(payments.saleId, sale.id))
     const [creator] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, sale.createdByUserId))
+    const [voider] = sale.voidedByUserId
+      ? await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, sale.voidedByUserId))
+      : []
 
     return {
       sale,
       items,
       payments: paymentRows,
       createdByName: creator?.fullName ?? 'Usuario',
+      voidedByName: voider?.fullName ?? null,
     }
   })
 
