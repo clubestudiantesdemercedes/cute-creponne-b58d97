@@ -369,7 +369,11 @@ function ReportesPage() {
                               {saleDetail.sale.status === 'anulada' && <span className="text-xs font-semibold text-red-700">Venta anulada</span>}
                             </div>
                             {saleDetail.sale.status === 'anulada' && (
-                              <p className="text-xs text-slate-600">Motivo: {saleDetail.sale.voidReason ?? '—'}{saleDetail.sale.voidNotes ? ' · ' + saleDetail.sale.voidNotes : ''}</p>
+                              <p className="text-xs text-slate-600">
+                                Motivo: {saleDetail.sale.voidReason ?? '—'}{saleDetail.sale.voidNotes ? ' · ' + saleDetail.sale.voidNotes : ''}
+                                {' · '}Anuló: {saleDetail.voidedByName ?? 'Usuario'}
+                                {saleDetail.sale.voidedAt ? ' · ' + formatDateTimeAR(saleDetail.sale.voidedAt) : ''}
+                              </p>
                             )}
                             <p className="text-xs font-semibold text-slate-600 uppercase">
                               Personas en esta venta
