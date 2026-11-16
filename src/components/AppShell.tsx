@@ -28,14 +28,14 @@ type NavItem = {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Panel', icon: LayoutDashboard, roles: ['admin', 'encargado', 'control_ingreso', 'consulta'] },
-  { to: '/venta', label: 'Venta rápida', icon: ShoppingCart, roles: ['admin', 'encargado'] },
-  { to: '/ingreso', label: 'Control de ingreso', icon: ScanLine, roles: ['admin', 'encargado', 'control_ingreso'] },
-  { to: '/personas', label: 'Personas', icon: Users, roles: ['admin', 'encargado', 'consulta'] },
+  { to: '/', label: 'Panel', icon: LayoutDashboard, roles: ['admin', 'operador'] },
+  { to: '/venta', label: 'Venta rápida', icon: ShoppingCart, roles: ['admin', 'operador'] },
+  { to: '/ingreso', label: 'Control de ingreso', icon: ScanLine, roles: ['admin', 'operador'] },
+  { to: '/personas', label: 'Personas', icon: Users, roles: ['admin', 'operador'] },
   { to: '/socios', label: 'Socios', icon: IdCard, roles: ['admin', 'encargado', 'consulta'] },
-  { to: '/convenios', label: 'Convenios', icon: Handshake, roles: ['admin', 'consulta'] },
+  { to: '/convenios', label: 'Convenios', icon: Handshake, roles: ['admin'] },
   { to: '/planes', label: 'Planes y tarifas', icon: Ticket, roles: ['admin'] },
-  { to: '/reportes', label: 'Reportes', icon: BarChart3, roles: ['admin', 'consulta'] },
+  { to: '/reportes', label: 'Reportes', icon: BarChart3, roles: ['admin'] },
   { to: '/caja', label: 'Cierre de caja', icon: Wallet, roles: ['admin'] },
   { to: '/usuarios', label: 'Usuarios', icon: UserCog, roles: ['admin'] },
   { to: '/config', label: 'Configuración', icon: Settings, roles: ['admin'] },
