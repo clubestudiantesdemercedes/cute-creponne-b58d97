@@ -7,6 +7,7 @@ import { requireUser } from './auth.server'
 
 const ImportRow = z.object({
   memberNumber: z.string().min(1),
+  memberSince: z.string().min(1),
   dni: z.string().min(6),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
@@ -102,6 +103,10 @@ function normalizeBirthDate(
 
 const HEADER_ALIASES: Record<string, keyof ImportRowT> = {
   socio: 'memberNumber',
+  alta: 'memberSince',
+  fechaalta: 'memberSince',
+  altasocio: 'memberSince',
+  fechaaltasocio: 'memberSince',
   numerosocio: 'memberNumber',
   nsocio: 'memberNumber',
   dni: 'dni',
@@ -206,6 +211,17 @@ export const previewMembersImport = createServerFn({ method: 'POST' })
 
       const errors: string[] = []
       if (!obj.memberNumber) errors.push('Falta número de socio')
+      if (!obj.memberSince) {
+        errors.push('Falta fecha de alta como socio')
+      } else {
+        const memberSince = normalizeBirthDate(obj.memberSince)
+        if (!memberSince) {
+          errors.push(`Fecha de alta como socio inválida: ${obj.memberSince}`)
+          obj.memberSince = ''
+        } else {
+          obj.memberSince = memberSince
+        }
+      }
       if (!obj.dni) errors.push('Falta DNI')
       else obj.dni = normalizeDni(obj.dni)
       if (!obj.firstName) errors.push('Falta nombre')
@@ -326,6 +342,7 @@ export const confirmMembersImport = createServerFn({ method: 'POST' })
           .update(members)
           .set({
             personId: person.id,
+            memberSince: row.memberSince,
             memberStatus: row.status,
             category: row.category ?? 'general',
             updatedAt: new Date(),
@@ -349,6 +366,7 @@ export const confirmMembersImport = createServerFn({ method: 'POST' })
         await db.insert(members).values({
           personId: person.id,
           memberNumber,
+          memberSince: row.memberSince,
           memberStatus: row.status,
           category: row.category ?? 'general',
         })
@@ -445,6 +463,7 @@ const UpsertMemberInput = z.object({
   memberId: z.number().optional(),
   personId: z.number().optional(),
   memberNumber: z.string().min(1),
+  memberSince: z.string().min(1),
   dni: z.string().min(6),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
@@ -533,6 +552,7 @@ export const upsertMember = createServerFn({ method: 'POST' })
         .update(members)
         .set({
           memberNumber,
+          memberSince: data.memberSince,
           personId: person.id,
           memberStatus: data.memberStatus,
           category: data.category,
@@ -554,6 +574,7 @@ export const upsertMember = createServerFn({ method: 'POST' })
       .values({
         personId: person.id,
         memberNumber,
+        memberSince: data.memberSince,
         memberStatus: data.memberStatus,
         category: data.category,
       })
