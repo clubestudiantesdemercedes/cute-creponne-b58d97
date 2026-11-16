@@ -344,6 +344,7 @@ function PersonasPage() {
       </div>
 
       {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <form
           onSubmit={savePerson}
           className="bg-white rounded-xl shadow-sm p-5 space-y-4"
@@ -553,6 +554,7 @@ function PersonasPage() {
             </button>
           </div>
         </form>
+        </div>
       )}
 
       <form
