@@ -8,6 +8,7 @@ import {
   Pencil,
   X,
   Save,
+  History,
 } from 'lucide-react'
 import {
   previewMembersImport,
@@ -16,7 +17,8 @@ import {
   upsertMember,
   type ImportRowT,
 } from '@/server/members.functions'
-import { formatDateAR } from '@/lib/format'
+import { formatDateAR, formatDateTimeAR } from '@/lib/format'
+import { findActivePermitsByDni } from '@/server/permits.functions'
 import { listActiveConventions } from '@/server/people.functions'
 
 export const Route = createFileRoute('/_app/socios')({
@@ -96,6 +98,9 @@ function SociosPage() {
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [selectedDni, setSelectedDni] = useState<string | null>(null)
+  const [history, setHistory] = useState<Awaited<ReturnType<typeof findActivePermitsByDni>>>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [csvFileName, setCsvFileName] = useState<string | null>(null)
 
   const [preview, setPreview] = useState<Awaited<
@@ -112,7 +117,6 @@ function SociosPage() {
     setForm(emptyForm())
     setFormError(null)
     setFormOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function startEdit(m: (typeof members)[number]) {
@@ -138,13 +142,26 @@ function SociosPage() {
     })
     setFormError(null)
     setFormOpen(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function closeForm() {
     setFormOpen(false)
     setForm(emptyForm())
     setFormError(null)
+  }
+
+  async function openHistory(dni: string) {
+    setSelectedDni(dni)
+    setHistoryLoading(true)
+    try {
+      const result = await findActivePermitsByDni({ data: { dni } })
+      setHistory(result)
+    } catch (err) {
+      setHistory(null)
+      setFormError(err instanceof Error ? err.message : 'No se pudo cargar el historial.')
+    } finally {
+      setHistoryLoading(false)
+    }
   }
 
   async function saveMember(e: React.FormEvent) {
@@ -284,9 +301,10 @@ function SociosPage() {
       </div>
 
       {formOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 sm:p-6">
         <form
           onSubmit={saveMember}
-          className="bg-white rounded-xl shadow-sm p-5 space-y-3 border border-blue-100"
+          className="bg-white rounded-xl shadow-2xl p-5 space-y-3 border border-blue-100 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
         >
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-slate-800">
@@ -456,6 +474,7 @@ function SociosPage() {
             </button>
           </div>
         </form>
+        </div>
       )}
 
       <div className="bg-white rounded-xl shadow-sm p-5">
@@ -651,6 +670,14 @@ function SociosPage() {
                       <Pencil className="w-3.5 h-3.5" />
                       Editar
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => void openHistory(m.person.dni)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 border border-slate-300 px-2 py-1 rounded-lg hover:bg-slate-50 ml-1"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      Historial
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -662,6 +689,36 @@ function SociosPage() {
             </p>
           )}
         </div>
+      {selectedDni && (
+        <div className="bg-white rounded-xl shadow-sm p-5">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Historial de pases</h2>
+              <p className="text-sm text-slate-500">DNI {selectedDni}</p>
+            </div>
+            <button type="button" onClick={() => { setSelectedDni(null); setHistory(null) }} className="text-sm border border-slate-300 rounded-lg px-3 py-2">Cerrar</button>
+          </div>
+          {historyLoading ? (
+            <p className="text-sm text-slate-500 py-4">Cargando historial...</p>
+          ) : history ? (
+            <>
+              <h3 className="font-semibold">{history.person.lastName}, {history.person.firstName}</h3>
+              <p className="text-sm text-slate-500 mb-3">Último ingreso: {history.lastEntry ? formatDateTimeAR(history.lastEntry.occurredAt) : 'Sin ingresos registrados'}</p>
+              <ul className="divide-y divide-slate-100">
+                {history.permits.map((p) => (
+                  <li key={p.permit.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm">
+                    <span className="font-medium">{p.plan.name}{p.convention ? ` — ${p.convention.name}` : ''}</span>
+                    <span className="text-slate-500 sm:text-right">{formatDateAR(p.permit.startDate)} – {formatDateAR(p.permit.endDate)} · {p.liveStatus}</span>
+                  </li>
+                ))}
+                {history.permits.length === 0 && <li className="py-3 text-sm text-slate-400">Sin pases registrados.</li>}
+              </ul>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500 py-3">No se encontró historial para esta persona.</p>
+          )}
+        </div>
+      )}
       </div>
     </div>
   )
