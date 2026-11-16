@@ -20,7 +20,7 @@ const UserInput = z.object({
   username: z.string().min(3),
   password: z.string().min(6).optional(),
   fullName: z.string().min(1),
-  role: z.enum(['admin', 'encargado', 'control_ingreso', 'consulta']),
+  role: z.enum(['admin', 'operador']),
   active: z.boolean().default(true),
 })
 
