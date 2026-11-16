@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
-import { eq } from 'drizzle-orm'
+import { eq, ne } from 'drizzle-orm'
 import { db } from './db.server'
 import { users, auditLogs } from '../../db/schema'
 import { requireUser } from './auth.server'
@@ -109,3 +109,44 @@ export const updateUser = createServerFn({ method: 'POST' })
 
     return { ok: true }
   })
+
+
+/**
+ * Deshabilita las demás cuentas conservando jsiri como administrador general.
+ * No elimina filas porque ventas, ingresos y auditorías históricas pueden
+ * referenciar a esos usuarios.
+ */
+export const deactivateOtherUsers = createServerFn({ method: 'POST' }).handler(async () => {
+  const requester = await requireUser()
+  if (requester.role !== 'admin' || requester.username !== 'jsiri') {
+    throw new Error('Solo jsiri, como administrador general, puede realizar esta limpieza.')
+  }
+
+  const [currentUser] = await db
+    .select({ id: users.id, active: users.active, role: users.role })
+    .from(users)
+    .where(eq(users.id, requester.userId))
+
+  if (!currentUser || !currentUser.active || currentUser.role !== 'admin') {
+    throw new Error('La cuenta jsiri debe estar activa y ser administrador general.')
+  }
+
+  const disabled = await db
+    .update(users)
+    .set({ active: false })
+    .where(ne(users.id, requester.userId))
+    .returning({ id: users.id, username: users.username })
+
+  await db.insert(auditLogs).values({
+    userId: requester.userId,
+    action: 'deshabilitar_otras_cuentas',
+    entityType: 'user',
+    entityId: String(requester.userId),
+    details: {
+      keptUsername: 'jsiri',
+      disabledUsernames: disabled.map((u) => u.username),
+    },
+  })
+
+  return { disabledCount: disabled.length, disabledUsernames: disabled.map((u) => u.username) }
+})
