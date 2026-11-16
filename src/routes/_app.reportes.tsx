@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Download, Search } from 'lucide-react'
-import { listSales, getSaleDetail } from '@/server/sales.functions'
+import { listSales, getSaleDetail, voidSale } from '@/server/sales.functions'
+import { getCurrentUser } from '@/server/auth.functions'
 import { listEntries } from '@/server/entries.functions'
 import { listExpiringPermits } from '@/server/permits.functions'
 import {
@@ -20,13 +21,14 @@ import { formatARS, formatDateAR, formatDateTimeAR, todayISO } from '@/lib/forma
 export const Route = createFileRoute('/_app/reportes')({
   loader: async () => {
     const today = todayISO()
-    const [sales, entries, expiring, conventionsReport] = await Promise.all([
+    const [sales, entries, expiring, conventionsReport, user] = await Promise.all([
       listSales({ data: { dateFrom: today, dateTo: today } }),
       listEntries({ data: { dateFrom: today, dateTo: today } }),
       listExpiringPermits(),
       getConventionsReport(),
+      getCurrentUser(),
     ])
-    return { sales, entries, expiring, conventionsReport, initialFrom: today, initialTo: today }
+    return { sales, entries, expiring, conventionsReport, user, initialFrom: today, initialTo: today }
   },
   component: ReportesPage,
 })
@@ -60,6 +62,10 @@ function ReportesPage() {
     ReturnType<typeof getSaleDetail>
   > | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [voidingSaleId, setVoidingSaleId] = useState<number | null>(null)
+  const [voidReason, setVoidReason] = useState('error_importe')
+  const [voidNotes, setVoidNotes] = useState('')
+  const [voidBusy, setVoidBusy] = useState(false)
 
   const periodData = { dateFrom, dateTo }
   const periodLabel =
@@ -83,6 +89,29 @@ function ReportesPage() {
       setSaleDetail(null)
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  async function confirmVoidSale() {
+    if (voidingSaleId == null) return
+    if (voidReason === 'otro' && !voidNotes.trim()) {
+      setError('Explicá el motivo de la anulación.')
+      return
+    }
+    setVoidBusy(true)
+    setError(null)
+    try {
+      await voidSale({ data: { saleId: voidingSaleId, reason: voidReason as 'error_importe' | 'error_periodo' | 'error_persona' | 'venta_duplicada' | 'error_categoria_convenio' | 'otro', notes: voidNotes } })
+      const updated = await listSales({ data: { dateFrom, dateTo } })
+      setSales(updated)
+      const detail = await getSaleDetail({ data: { saleId: voidingSaleId } })
+      setSaleDetail(detail)
+      setVoidingSaleId(null)
+      setVoidNotes('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo anular la venta.')
+    } finally {
+      setVoidBusy(false)
     }
   }
 
@@ -323,6 +352,25 @@ function ReportesPage() {
                         )}
                         {!detailLoading && saleDetail && saleDetail.sale.id === s.id && (
                           <div className="space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-xs text-slate-600">
+                                Registró: <strong>{saleDetail.createdByName}</strong>
+                              </div>
+                              {saleDetail.sale.status !== 'anulada' && !s.cashClosed && (initial.user?.role === 'admin' || saleDetail.sale.createdByUserId === initial.user?.userId) && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setVoidingSaleId(s.id); setVoidReason('error_importe'); setVoidNotes('') }}
+                                  className="rounded-lg bg-red-700 px-3 py-2 text-xs font-semibold text-white hover:bg-red-800"
+                                >
+                                  Anular venta
+                                </button>
+                              )}
+                              {s.cashClosed && <span className="text-xs font-semibold text-slate-500">Caja cerrada: no se puede anular</span>}
+                              {saleDetail.sale.status === 'anulada' && <span className="text-xs font-semibold text-red-700">Venta anulada</span>}
+                            </div>
+                            {saleDetail.sale.status === 'anulada' && (
+                              <p className="text-xs text-slate-600">Motivo: {saleDetail.sale.voidReason ?? '—'}{saleDetail.sale.voidNotes ? ' · ' + saleDetail.sale.voidNotes : ''}</p>
+                            )}
                             <p className="text-xs font-semibold text-slate-600 uppercase">
                               Personas en esta venta
                             </p>
@@ -380,6 +428,34 @@ function ReportesPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {voidingSaleId != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl space-y-4">
+            <h3 className="text-lg font-bold text-slate-900">Confirmar anulación</h3>
+            <p className="text-sm text-slate-600">Se anulará la venta completa, sus pagos y permisos asociados. Los ingresos que ya se hayan registrado se conservarán en el historial. Esta acción no se puede deshacer.</p>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Motivo</span>
+              <select value={voidReason} onChange={(e) => setVoidReason(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2">
+                <option value="error_importe">Error en el importe</option>
+                <option value="error_periodo">Error en el período</option>
+                <option value="error_persona">Error en la persona</option>
+                <option value="venta_duplicada">Venta duplicada</option>
+                <option value="error_categoria_convenio">Error de categoría o convenio</option>
+                <option value="otro">Otro</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Detalle {voidReason === 'otro' ? '(obligatorio)' : '(opcional)'}</span>
+              <textarea value={voidNotes} onChange={(e) => setVoidNotes(e.target.value)} rows={3} maxLength={1000} className="w-full rounded-lg border border-slate-300 px-3 py-2" placeholder="Describí brevemente el motivo..." />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" disabled={voidBusy} onClick={() => setVoidingSaleId(null)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Cancelar</button>
+              <button type="button" disabled={voidBusy || (voidReason === 'otro' && !voidNotes.trim())} onClick={confirmVoidSale} className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{voidBusy ? 'Anulando...' : 'Confirmar anulación'}</button>
+            </div>
+          </div>
         </div>
       )}
 
