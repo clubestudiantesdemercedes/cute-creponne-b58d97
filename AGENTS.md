@@ -17,6 +17,7 @@ A full-stack, production-oriented (not a static demo) application for managing t
 | Auth | Custom cookie session (`useSession` from `@tanstack/react-start/server`), bcrypt password hashing |
 | Validation | Zod, used as `createServerFn().inputValidator(...)` |
 | QR | `qrcode` npm package (client-side `toDataURL`) for generation; browser-native `BarcodeDetector` API for scanning |
+| PWA | `public/manifest.webmanifest`, `public/sw.js`, `src/components/PwaManager.tsx` |
 | Icons | lucide-react |
 
 ## Directory structure
@@ -31,12 +32,13 @@ src/
     session.server.ts   # cookie session type + getAppSession()
     format.ts           # ARS currency / AR date formatting, date-math helpers
     permit.ts            # computePermitDates, randomCode, generateSaleNumber
+    roles.ts             # ROLE_LABELS for admin | operador
   server/                # createServerFn-based backend logic, one file per domain
     auth.server.ts        # getSessionUser/requireUser/requireRole (throws redirect to /login)
     auth.functions.ts     # login/logout/getCurrentUser server functions
     people.functions.ts   # person search/create, convention beneficiaries
     plans.functions.ts    # plans, prices, resolvePrice(), conventions CRUD
-    sales.functions.ts    # createSale (core sale + permit generation), listSales, voidSale
+    sales.functions.ts    # createSale, listSales, getSaleDetail, voidSale
     permits.functions.ts  # computeLiveStatus(), verify by code, expiring buckets
     entries.functions.ts  # registerEntry (QR/manual), duplicate-entry guard
     dashboard.functions.ts
@@ -48,8 +50,9 @@ src/
   components/
     AppShell.tsx    # responsive nav shell, role-filtered menu
     QrCode.tsx       # renders a permit's QR from its code
+    PwaManager.tsx   # install prompt, update banner, offline status
   routes/
-    __root.tsx         # HTML shell, es-AR metadata
+    __root.tsx         # HTML shell, es-AR metadata, PWA links
     login.tsx           # public login page
     _app.tsx             # pathless authenticated layout (auth guard + AppShell)
     _app.index.tsx        # dashboard (maps to "/")
@@ -63,21 +66,40 @@ src/
     _app.caja.tsx                # cash closure
     _app.usuarios.tsx             # user management
     _app.config.tsx                # club config + demo data seeding
+public/
+  manifest.webmanifest
+  sw.js
+  offline.html
+  pwa-*.png / pwa-icon-*.svg
 ```
+
+## Roles
+
+Only two roles are in use:
+
+| Role | Capabilities |
+|------|----------------|
+| `admin` | Full access: users, plans, conventions, cash close, config, plus everything an operador can do |
+| `operador` | Daily operations: sales, entry control, people, members, reports |
+
+Legacy role names (`encargado`, `control_ingreso`, `consulta`) are no longer used in schema or UI.
 
 ## Key architectural decisions
 
 ### Auth: custom cookie session, not Netlify Identity
-Netlify Identity's own docs state it does not work on `localhost`/`netlify dev`, which would block local iteration, and the app needs four bespoke roles (`admin`, `encargado`, `control_ingreso`, `consulta`) with fine-grained permission checks. Instead, `src/lib/session.server.ts` wraps `useSession` with a sealed/encrypted cookie (`natatorio_session`). **`SESSION_SECRET` must be set as a real environment variable in Netlify for production** — the fallback value in that file is for local dev only and is not secure.
+Netlify Identity's own docs state it does not work on `localhost`/`netlify dev`, which would block local iteration. Instead, `src/lib/session.server.ts` wraps `useSession` with a sealed/encrypted cookie (`natatorio_session`). **`SESSION_SECRET` must be set as a real environment variable in Netlify for production** — the fallback value in that file is for local dev only and is not secure.
 
 ### Permit status is computed, not stored as truth
 `computeLiveStatus(permit)` (in `permits.functions.ts`) compares `startDate`/`endDate` against "today" (Argentina timezone) on every read — for the dashboard, entry control, and verification. The `status` column on `permits` only distinguishes `anulado` (voided) from everything else, so nothing ever needs a cron job to "expire" permits.
 
+### Sale void / auditoría de anulación
+`voidSale` requires a classified `reason` (`error_importe` | `error_periodo` | `error_persona` | `venta_duplicada` | `error_categoria_convenio` | `otro`) and optional notes (required when reason is `otro`). It sets `voidReason`, `voidNotes`, `voidedAt`, `voidedByUserId` on `sales`, voids related payments and permits, writes an `audit_logs` row, and blocks void when the day's cash is already closed. Only the sale creator or an admin may void.
+
 ### Price resolution
-`resolvePrice(planId, conditionType, conventionId)` in `plans.functions.ts` first looks for a convention-specific price row (`prices.conventionId` set), and falls back to the generic price for that `conditionType`. No prices are hardcoded in the frontend; the venta rápida screen fetches `listAllPrices()` and computes the same way client-side purely for display before confirming the sale — the authoritative price is always recalculated server-side inside `createSale`.
+`resolvePrice(planId, conditionType, conventionId)` first looks for a convention-specific price row (`prices.conventionId` set), and falls back to the generic price for that `conditionType`. No prices are hardcoded in the frontend; the venta rápida screen fetches prices for display, but the authoritative price is always recalculated server-side inside `createSale`.
 
 ### Permit date math
-`computePermitDates(plan, purchaseDateISO)` in `src/lib/permit.ts`: for `durationUnit === 'temporada'` plans it uses the plan's fixed `seasonStart`/`seasonEnd`; otherwise `endDate = addDaysISO(startDate, durationValue - 1)` (inclusive duration — a 30-day plan bought 14/12 ends 12/01, matching the club's own worked example).
+`computePermitDates(plan, purchaseDateISO)` in `src/lib/permit.ts`: for `durationUnit === 'temporada'` plans it uses the plan's fixed `seasonStart`/`seasonEnd`; otherwise `endDate = addDaysISO(startDate, durationValue - 1)` (inclusive duration).
 
 ### Duplicate prevention
 - People are deduplicated by normalized DNI (`normalizeDni` strips non-digits) via a unique index on `people.dni`.
@@ -85,7 +107,10 @@ Netlify Identity's own docs state it does not work on `localhost`/`netlify dev`,
 - Members are deduplicated by `memberNumber` during CSV import (`members.functions.ts`), which updates the existing person/member rather than inserting a duplicate.
 
 ### Prefer "anulado"/"inactivo" over hard deletes
-Sales, permits, conventions, and people all use status fields instead of deletion, per the audit/security requirement. `voidSale` sets `sales.status = 'anulada'` and cascades to void the sale's permits; it never deletes rows.
+Sales, permits, conventions, and people all use status fields instead of deletion. `voidSale` sets `sales.status = 'anulada'` and cascades to void the sale's permits; it never deletes rows.
+
+### PWA
+Installable app shell: manifest, service worker (static assets only — never HTML/API/user data), offline page, install prompt and update banner via `PwaManager`. Business operations require network; offline mode only shows a clear message.
 
 ## Conventions
 
@@ -93,7 +118,7 @@ Sales, permits, conventions, and people all use status fields instead of deletio
 - Import path alias is `@/*` → `./src/*` (see `tsconfig.json`) — do not use `~/*`.
 - Drizzle: snake_case DB columns via explicit string keys, camelCase JS variables, `db/schema.ts` is the single source of truth. Run `npx drizzle-kit generate --name <name>` after schema changes; Netlify applies migrations from `netlify/database/migrations/` at deploy time.
 - All money is stored as integer ARS (no cents). Format with `formatARS` from `src/lib/format.ts`.
-- All dates are stored as `YYYY-MM-DD` strings (not timestamps) for permit/plan date fields to avoid timezone drift; use `formatDateAR`/`formatDateTimeAR` for display.
+- All dates for permit/plan fields are stored as `YYYY-MM-DD` strings (not timestamps) to avoid timezone drift; use `formatDateAR`/`formatDateTimeAR` for display.
 
 ## Explicitly out of scope for this version
 
