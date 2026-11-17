@@ -5,5 +5,17 @@ node_modules/
 dist/
 .DS_Store
 *.log
-# Local Netlify folder
-.netlify
+
+# Local Netlify folder and local DB
+.netlify/
+
+# Dumps / exports accidentales
+biblioteca-proyecto.txt
+codigo-proyecto.txt
+*.dump
+*.sql.bak
+
+# Package manager / runtime locks no usados
+deno.lock
+package-lock.json
+yarn.lock
