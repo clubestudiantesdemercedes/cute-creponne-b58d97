@@ -1,1 +1,0 @@
-import * as bootstrap from './___netlify-bootstrap.mjs';export const handler = bootstrap.getLambdaHandler('./.netlify/v1/functions/server.mjs')
