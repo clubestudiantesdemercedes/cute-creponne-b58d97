@@ -4,15 +4,23 @@ Aplicación web para gestionar la temporada de pileta del Club Atlético Estudia
 
 ## Funcionalidades principales
 
-- **Venta rápida**: selección de tipo de persona (socio / no socio / convenio), búsqueda o alta de persona, selección de plan con precio automático, carga de varias personas en una misma venta y pago único.
+- **Venta rápida**: selección de tipo de persona (socio / no socio / convenio / deportista), búsqueda o alta de persona, selección de plan con precio automático, carga de varias personas en una misma venta y pago único.
 - **Permisos y QR**: cada persona recibe un permiso individual con fechas de vigencia calculadas automáticamente y un código QR verificable.
 - **Control de ingreso**: pantalla mobile-first para escanear el QR (usando la API `BarcodeDetector` del navegador) o buscar por DNI, con aviso de ingresos duplicados y bloqueo de permisos vencidos.
-- **Socios**: importación masiva desde CSV/Excel (con vista previa de nuevos/actualizados/errores) y búsqueda por número de socio o DNI.
+- **Socios**: importación masiva desde CSV/Excel (con vista previa de nuevos/actualizados/errores), fecha de alta, categoría y búsqueda por número de socio o DNI.
 - **Convenios**: administración de convenios con empresas, sindicatos o instituciones, y sus beneficiarios y tarifas propias.
 - **Planes y tarifas**: configuración de planes (diario, semanal, mensual, temporada) y tarifas por tipo de condición, sin precios fijos en el código.
-- **Reportes y exportación**: ventas, ingresos, convenios y vencimientos de permisos, todos exportables a CSV.
+- **Anulación de ventas**: motivo clasificado, notas opcionales, registro de quién anuló y cuándo; se anulan pagos y permisos asociados.
+- **Reportes y exportación**: ventas, ingresos, convenios y vencimientos de permisos, exportables a CSV.
 - **Cierre de caja**: totales diarios por método de pago, con cierre definitivo habilitado solo para administradores.
-- **Roles**: administrador, encargado de pileta, control de ingreso y consulta (solo lectura).
+- **PWA**: instalable en el dispositivo (pantalla de inicio), con service worker, página offline y aviso de actualizaciones.
+
+## Roles
+
+| Rol | Descripción |
+|---|---|
+| `admin` | Administrador general: acceso completo (usuarios, planes, convenios, caja, configuración). |
+| `operador` | Operaciones diarias: ventas, ingreso, personas, socios y reportes. |
 
 ## Stack técnico
 
@@ -20,6 +28,7 @@ Aplicación web para gestionar la temporada de pileta del Club Atlético Estudia
 - Tailwind CSS v4
 - Netlify Database (Postgres) + Drizzle ORM
 - Autenticación por cookie de sesión firmada (sin dependencias externas)
+- PWA (manifest + service worker)
 - Despliegue en Netlify
 
 ## Desarrollo local
@@ -53,8 +62,6 @@ Usuarios de demostración (contraseña `estudiantes2026` para todos):
 | Usuario | Rol |
 |---|---|
 | `admin` | Administrador |
-| `encargado` | Encargado de pileta |
-| `ingreso` | Control de ingreso |
-| `consulta` | Consulta (solo lectura) |
+| `operador` | Operador |
 
 Ver `AGENTS.md` para el detalle de la arquitectura y decisiones de diseño.
