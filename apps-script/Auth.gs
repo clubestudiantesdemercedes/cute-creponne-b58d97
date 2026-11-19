@@ -221,14 +221,19 @@ function normalizeUsername_(value) {
 }
 
 function passwordHash_(password, salt) {
-  // PBKDF2-HMAC-SHA256 (10.000 iteraciones, un bloque de 256 bits).
-  let u = Utilities.computeHmacSha256Signature(salt + String.fromCharCode(0, 0, 0, 1), password);
+  // PBKDF2-HMAC-SHA256 (10.000 iteraciones, salida de 256 bits).
+  const key = String(password);
+  const saltBytes = String(salt) + String.fromCharCode(0, 0, 0, 1);
+  let u = Utilities.computeHmacSha256Signature(saltBytes, key);
   const derived = u.slice();
   for (let i = 1; i < 10000; i++) {
-    u = Utilities.computeHmacSha256Signature(u, password);
-    for (let j = 0; j < derived.length; j++) derived[j] = derived[j] ^ u[j];
+    u = Utilities.computeHmacSha256Signature(u, key);
+    for (let j = 0; j < derived.length; j++) {
+      derived[j] = derived[j] ^ u[j];
+    }
   }
-  return 'pbkdf2-sha256$10000
+  return Utilities.base64Encode(derived);
+}
 
 function verifyPassword_(password, stored) {
   const parts = String(stored || '').split(':');
