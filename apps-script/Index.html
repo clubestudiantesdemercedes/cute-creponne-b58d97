@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <base target="_top">
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div class="brand-mark" aria-hidden="true">CAE</div>
+        <div>
+          <p class="eyebrow">CLUB ATLÉTICO ESTUDIANTES</p>
+          <h1>Gestión del Natatorio</h1>
+        </div>
+      </header>
+
+      <section class="welcome-card">
+        <span class="status-dot"></span>
+        <p class="eyebrow">NUEVA VERSIÓN · GOOGLE APPS SCRIPT</p>
+        <h2>Base de la aplicación preparada</h2>
+        <p>Esta versión se está construyendo. Primero configuraremos la planilla de datos y después incorporaremos el acceso de usuarios y los módulos de gestión.</p>
+        <div class="setup-status" id="setup-status" role="status">
+          Comprobando conexión con la base…
+        </div>
+      </section>
+
+      <footer>Club Atlético Estudiantes · Mercedes, Buenos Aires</footer>
+    </main>
+    <?!= include('Client'); ?>
+  </body>
+</html>
