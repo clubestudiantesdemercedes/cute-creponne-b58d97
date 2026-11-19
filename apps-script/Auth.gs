@@ -172,15 +172,33 @@ function requireAdmin_(token) {
 
 function getSession_(token) {
   if (typeof token !== 'string' || token.length < 30) throw new Error('La sesión venció. Iniciá sesión nuevamente.');
-  const raw = CacheService.getScriptCache().get('AUTH_' + token);
+  const cache = CacheService.getScriptCache();
+  const raw = cache.get('AUTH_' + token);
   if (!raw) throw new Error('La sesión venció. Iniciá sesión nuevamente.');
-  return JSON.parse(raw);
+  const session = JSON.parse(raw);
+  const current = findUserById_(session.id);
+  if (!current || !(current.activo === true || String(current.activo).toLowerCase() === 'true')) {
+    cache.remove('AUTH_' + token);
+    throw new Error('La cuenta fue desactivada o ya no existe. Contactá al administrador.');
+  }
+  session.role = String(current.rol);
+  session.name = String(current.nombre_completo);
+  session.username = String(current.usuario);
+  return session;
 }
 
 function findUserByUsername_(username) {
   const users = readTable_('Usuarios');
   for (let i = 0; i < users.length; i++) {
     if (normalizeUsername_(users[i].usuario) === username) return users[i];
+  }
+  return null;
+}
+
+function findUserById_(userId) {
+  const users = readTable_('Usuarios');
+  for (let i = 0; i < users.length; i++) {
+    if (String(users[i].id) === String(userId)) return users[i];
   }
   return null;
 }
