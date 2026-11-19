@@ -13,17 +13,50 @@
           <h1>Gestión del Natatorio</h1>
         </div>
       </header>
-
-      <section class="welcome-card">
-        <span class="status-dot"></span>
-        <p class="eyebrow">NUEVA VERSIÓN · GOOGLE APPS SCRIPT</p>
-        <h2>Base de la aplicación preparada</h2>
-        <p>Esta versión se está construyendo. Primero configuraremos la planilla de datos y después incorporaremos el acceso de usuarios y los módulos de gestión.</p>
-        <div class="setup-status" id="setup-status" role="status">
-          Comprobando conexión con la base…
+      <section id="loading-panel" class="panel"><p class="muted">Comprobando configuración…</p></section>
+      <section id="setup-panel" class="panel hidden">
+        <p class="eyebrow">CONFIGURACIÓN INICIAL</p>
+        <h2>Crear administrador</h2>
+        <p class="muted">Generá primero un código temporal desde el editor de Apps Script. El código se puede utilizar una sola vez y vence a los 30 minutos.</p>
+        <form id="setup-form" class="form-grid">
+          <label>Código inicial<input name="setupCode" autocomplete="one-time-code" required></label>
+          <label>Nombre completo<input name="fullName" autocomplete="name" maxlength="80" required></label>
+          <label>Nombre de usuario<input name="username" autocomplete="username" minlength="3" maxlength="30" required></label>
+          <label>Contraseña<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+          <p class="hint">Usá una contraseña única de al menos 10 caracteres. No reutilices la contraseña de Gmail.</p>
+          <button type="submit">Crear administrador</button>
+        </form>
+      </section>
+      <section id="login-panel" class="panel hidden">
+        <p class="eyebrow">ACCESO AL SISTEMA</p><h2>Iniciar sesión</h2>
+        <form id="login-form" class="form-grid">
+          <label>Usuario<input name="username" autocomplete="username" required></label>
+          <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+          <button type="submit">Ingresar</button>
+        </form>
+      </section>
+      <section id="app-panel" class="hidden">
+        <div class="panel user-bar">
+          <div><p class="eyebrow">SESIÓN ACTIVA</p><strong id="user-name"></strong><p id="user-role" class="muted small"></p></div>
+          <button id="logout-button" class="button-secondary" type="button">Cerrar sesión</button>
+        </div>
+        <div id="admin-panel" class="panel hidden">
+          <p class="eyebrow">ADMINISTRACIÓN</p><h2>Usuarios</h2>
+          <p class="muted">Creá las cuentas de los operadores y habilitalas o deshabilitalas cuando sea necesario.</p>
+          <form id="operator-form" class="form-grid two-columns">
+            <label>Nombre completo<input name="fullName" autocomplete="name" maxlength="80" required></label>
+            <label>Nombre de usuario<input name="username" autocomplete="off" minlength="3" maxlength="30" required></label>
+            <label>Contraseña provisoria<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+            <button type="submit">Crear operador</button>
+          </form>
+          <div id="users-list" class="users-list"><p class="muted">Cargando usuarios…</p></div>
+        </div>
+        <div id="operator-panel" class="panel hidden">
+          <p class="eyebrow">ACCESO DE OPERADOR</p><h2>Bienvenido</h2>
+          <p class="muted">Tu cuenta está activa. Los módulos de gestión se incorporarán en las próximas etapas.</p>
         </div>
       </section>
-
+      <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
       <footer>Club Atlético Estudiantes · Mercedes, Buenos Aires</footer>
     </main>
     <?!= include('Client'); ?>
