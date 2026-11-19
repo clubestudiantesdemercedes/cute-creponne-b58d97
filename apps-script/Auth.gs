@@ -203,7 +203,39 @@ function normalizeUsername_(value) {
 }
 
 function passwordHash_(password, salt) {
-  return hashText_(salt + ':' + password);
+  // PBKDF2-HMAC-SHA256 (10.000 iteraciones, un bloque de 256 bits).
+  let u = Utilities.computeHmacSha256Signature(salt + '\\x00\\x00\\x00\\x01', password);
+  const derived = u.slice();
+  for (let i = 1; i < 10000; i++) {
+    u = Utilities.computeHmacSha256Signature(u, password);
+    for (let j = 0; j < derived.length; j++) derived[j] = derived[j] ^ u[j];
+  }
+  return 'pbkdf2-sha256$10000
+
+function verifyPassword_(password, stored) {
+  const parts = String(stored || '').split(':');
+  if (parts.length !== 2) return false;
+  return passwordHash_(password, parts[1]) === parts[0];
+}
+
+function hashText_(value) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value), Utilities.Charset.UTF_8);
+  return Utilities.base64Encode(digest);
+}
+
+function loginLockKey_(username) {
+  return 'LOGIN_' + hashText_(username).replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+}
+
+function publicUser_(session) {
+  return { id: session.id, username: session.username, name: session.name, role: session.role };
+}
+
+function auditAuth_(action, entityId, detail) {
+  const sheet = getDatabase_().getSheetByName('Auditoria');
+  sheet.appendRow([Utilities.getUuid(), 'sistema', action, 'Usuario', String(entityId), JSON.stringify({ detalle: detail }), new Date()]);
+}
+ + Utilities.base64Encode(derived);
 }
 
 function verifyPassword_(password, stored) {
