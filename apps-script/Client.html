@@ -1,0 +1,15 @@
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const status = document.getElementById('setup-status');
+    google.script.run
+      .withSuccessHandler(function(result) {
+        status.textContent = result.spreadsheetConnected
+          ? 'Conexión correcta con la planilla "' + result.spreadsheetName + '". Estructura de ' + result.tables + ' módulos prevista.'
+          : 'La planilla todavía no está configurada.';
+      })
+      .withFailureHandler(function() {
+        status.textContent = 'La base de datos todavía no está vinculada. El próximo paso es configurar la planilla desde Apps Script.';
+      })
+      .healthCheck();
+  });
+</script>
