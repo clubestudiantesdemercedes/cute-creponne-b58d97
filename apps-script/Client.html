@@ -1,15 +1,114 @@
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const status = document.getElementById('setup-status');
-    google.script.run
-      .withSuccessHandler(function(result) {
-        status.textContent = result.spreadsheetConnected
-          ? 'Conexión correcta con la planilla "' + result.spreadsheetName + '". Estructura de ' + result.tables + ' módulos prevista.'
-          : 'La planilla todavía no está configurada.';
-      })
-      .withFailureHandler(function() {
-        status.textContent = 'La base de datos todavía no está vinculada. El próximo paso es configurar la planilla desde Apps Script.';
-      })
-      .healthCheck();
+(function() {
+  const $ = (id) => document.getElementById(id);
+  let sessionToken = '';
+
+  function show(id) {
+    ['loading-panel','setup-panel','login-panel','app-panel'].forEach((key) => $(key).classList.toggle('hidden', key !== id));
+  }
+  function feedback(message, isError) {
+    const box = $('feedback');
+    box.textContent = message;
+    box.classList.remove('hidden','error','success');
+    box.classList.add(isError ? 'error' : 'success');
+  }
+  function clearFeedback() { $('feedback').classList.add('hidden'); }
+  function callServer(method, args, onSuccess, onFailure) {
+    const runner = google.script.run
+      .withSuccessHandler((result) => { clearFeedback(); if (onSuccess) onSuccess(result); })
+      .withFailureHandler((error) => {
+        if (onFailure) onFailure(error);
+        feedback(error && error.message ? error.message : 'Ocurrió un error. Intentá nuevamente.', true);
+      });
+    runner[method].apply(runner, args || []);
+  }
+  function enterApp(user) {
+    $('user-name').textContent = user.name;
+    $('user-role').textContent = user.role === 'admin' ? 'Administrador' : 'Operador';
+    show('app-panel');
+    $('admin-panel').classList.toggle('hidden', user.role !== 'admin');
+    $('operator-panel').classList.toggle('hidden', user.role === 'admin');
+    if (user.role === 'admin') loadUsers();
+  }
+  function loadInitialState() {
+    show('loading-panel');
+    callServer('getAuthStatus', [], (state) => {
+      if (!state.initialized) { show('setup-panel'); return; }
+      const savedToken = sessionStorage.getItem('natatorioSession');
+      if (savedToken) {
+        sessionToken = savedToken;
+        callServer('getCurrentUser', [sessionToken], (result) => enterApp(result.user), () => {
+          sessionStorage.removeItem('natatorioSession');
+          sessionToken = '';
+          show('login-panel');
+        });
+      } else show('login-panel');
+    });
+  }
+  function loadUsers() {
+    callServer('adminListUsers', [sessionToken], (users) => {
+      const container = $('users-list');
+      container.replaceChildren();
+      if (!users.length) { container.textContent = 'Todavía no hay usuarios.'; return; }
+      users.forEach((user) => {
+        const item = document.createElement('div'); item.className = 'user-item';
+        const info = document.createElement('div');
+        const name = document.createElement('strong'); name.textContent = user.name;
+        const meta = document.createElement('p'); meta.className = 'muted small';
+        meta.textContent = user.username + ' · ' + (user.role === 'admin' ? 'Administrador' : 'Operador');
+        info.append(name, meta); item.append(info);
+        const status = document.createElement('span');
+        status.className = user.active ? 'pill active' : 'pill inactive';
+        status.textContent = user.active ? 'Activo' : 'Desactivado'; item.append(status);
+        if (user.role === 'operador') {
+          const toggle = document.createElement('button'); toggle.type = 'button';
+          toggle.className = 'button-secondary compact'; toggle.textContent = user.active ? 'Desactivar' : 'Activar';
+          toggle.addEventListener('click', () => callServer('adminSetOperatorActive', [sessionToken, user.id, !user.active], loadUsers));
+          item.append(toggle);
+        }
+        container.append(item);
+      });
+    });
+  }
+
+  $('setup-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form).entries());
+    const button = form.querySelector('button'); button.disabled = true;
+    callServer('createFirstAdmin', [data.setupCode, data.username, data.fullName, data.password], (result) => {
+      form.reset(); button.disabled = false; feedback(result.message, false); show('login-panel');
+    }, () => { button.disabled = false; });
   });
+
+  $('login-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form).entries());
+    const button = form.querySelector('button'); button.disabled = true;
+    callServer('login', [data.username, data.password], (result) => {
+      sessionToken = result.token; sessionStorage.setItem('natatorioSession', sessionToken);
+      form.reset(); button.disabled = false; enterApp(result.user);
+    }, () => { button.disabled = false; });
+  });
+
+  $('operator-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form).entries());
+    const button = form.querySelector('button'); button.disabled = true;
+    callServer('adminCreateOperator', [sessionToken, data.username, data.fullName, data.password], (result) => {
+      form.reset(); button.disabled = false; feedback(result.message, false); loadUsers();
+    }, () => { button.disabled = false; });
+  });
+
+  $('logout-button').addEventListener('click', () => {
+    const oldToken = sessionToken;
+    sessionStorage.removeItem('natatorioSession'); sessionToken = '';
+    callServer('logout', [oldToken], () => { show('login-panel'); feedback('Sesión cerrada.', false); });
+  });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadInitialState);
+  else loadInitialState();
+})();
 </script>
