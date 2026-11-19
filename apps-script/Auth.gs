@@ -204,7 +204,7 @@ function normalizeUsername_(value) {
 
 function passwordHash_(password, salt) {
   // PBKDF2-HMAC-SHA256 (10.000 iteraciones, un bloque de 256 bits).
-  let u = Utilities.computeHmacSha256Signature(salt + '\\x00\\x00\\x00\\x01', password);
+  let u = Utilities.computeHmacSha256Signature(salt + String.fromCharCode(0, 0, 0, 1), password);
   const derived = u.slice();
   for (let i = 1; i < 10000; i++) {
     u = Utilities.computeHmacSha256Signature(u, password);
