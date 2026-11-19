@@ -259,7 +259,7 @@ function auditAuth_(action, entityId, detail) {
   sheet.appendRow([Utilities.getUuid(), 'sistema', action, 'Usuario', String(entityId), JSON.stringify({ detalle: detail }), new Date()]);
 }
  + Utilities.base64Encode(derived);
-}
+
 
 function verifyPassword_(password, stored) {
   const parts = String(stored || '').split(':');
