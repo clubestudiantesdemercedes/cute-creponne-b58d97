@@ -10,7 +10,7 @@ const AUTH_CONFIG = Object.freeze({
   setupCodeTtlSeconds: 1800,
   maxLoginAttempts: 5,
   lockoutSeconds: 900,
-  minPasswordLength: 10
+  minPasswordLength: 8
 });
 
 /**
@@ -211,7 +211,7 @@ function validateNewUser_(username, fullName, password) {
   }
   if (name.length < 2 || name.length > 80) throw new Error('Ingresá un nombre completo (2 a 80 caracteres).');
   if (typeof password !== 'string' || password.length < AUTH_CONFIG.minPasswordLength || password.length > 128) {
-    throw new Error('La contraseña debe tener entre 10 y 128 caracteres.');
+    throw new Error('La contraseña debe tener entre 8 y 128 caracteres.');
   }
   return { username: normalized, fullName: name };
 }
@@ -227,7 +227,7 @@ function passwordHash_(password, salt) {
   let u = Utilities.computeHmacSha256Signature(saltBytes, key);
   const derived = u.slice();
   for (let i = 1; i < 10000; i++) {
-    u = Utilities.computeHmacSha256Signature(u, key);
+    u = Utilities.computeHmacSha256Signature(Utilities.base64Encode(u), key);
     for (let j = 0; j < derived.length; j++) {
       derived[j] = derived[j] ^ u[j];
     }
