@@ -22,8 +22,8 @@
           <label>Código inicial<input name="setupCode" autocomplete="one-time-code" required></label>
           <label>Nombre completo<input name="fullName" autocomplete="name" maxlength="80" required></label>
           <label>Nombre de usuario<input name="username" autocomplete="username" minlength="3" maxlength="30" required></label>
-          <label>Contraseña<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
-          <p class="hint">Usá una contraseña única de al menos 10 caracteres. No reutilices la contraseña de Gmail.</p>
+          <label>Contraseña<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+          <p class="hint">Usá una contraseña única de al menos 8 caracteres. Podés combinar letras y números. No reutilices la contraseña de Gmail.</p>
           <button type="submit">Crear administrador</button>
         </form>
       </section>
@@ -46,7 +46,7 @@
           <form id="operator-form" class="form-grid two-columns">
             <label>Nombre completo<input name="fullName" autocomplete="name" maxlength="80" required></label>
             <label>Nombre de usuario<input name="username" autocomplete="off" minlength="3" maxlength="30" required></label>
-            <label>Contraseña provisoria<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+            <label>Contraseña provisoria<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
             <button type="submit">Crear operador</button>
           </form>
           <div id="users-list" class="users-list"><p class="muted">Cargando usuarios…</p></div>
