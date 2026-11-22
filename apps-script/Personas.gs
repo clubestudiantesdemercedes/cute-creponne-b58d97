@@ -246,7 +246,7 @@ function parseBirthDate_(value) {
   if (value === null || value === undefined || value === '') return '';
   const text = String(value).trim();
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  if (!match) throw new Error('La fecha de nacimiento debe tener el formato día/mes/año.');
+  if (!match) throw new Error('La fecha de nacimiento debe tener el formato AAAA-MM-DD.');
 
   const year = Number(match[1]);
   const month = Number(match[2]);
