@@ -1,211 +1,29 @@
 <script>
-(function() {
-  const $ = (id) => document.getElementById(id);
-  let sessionToken = '';
-
-  function show(id) {
-    ['loading-panel','setup-panel','login-panel','app-panel'].forEach((key) => $(key).classList.toggle('hidden', key !== id));
-  }
-  function feedback(message, isError) {
-    const box = $('feedback');
-    box.textContent = message;
-    box.classList.remove('hidden','error','success');
-    box.classList.add(isError ? 'error' : 'success');
-  }
-  function clearFeedback() { $('feedback').classList.add('hidden'); }
-  function callServer(method, args, onSuccess, onFailure) {
-    const runner = google.script.run
-      .withSuccessHandler((result) => { clearFeedback(); if (onSuccess) onSuccess(result); })
-      .withFailureHandler((error) => {
-        if (onFailure) onFailure(error);
-        feedback(error && error.message ? error.message : 'Ocurrió un error. Intentá nuevamente.', true);
-      });
-    runner[method].apply(runner, args || []);
-  }
-  function enterApp(user) {
-    $('user-name').textContent = user.name;
-    $('user-role').textContent = user.role === 'admin' ? 'Administrador' : 'Operador';
-    show('app-panel');
-    $('admin-panel').classList.toggle('hidden', user.role !== 'admin');
-    loadPeople('');
-    if (user.role === 'admin') loadUsers();
-  }
-  function loadInitialState() {
-    show('loading-panel');
-    callServer('getAuthStatus', [], (state) => {
-      if (!state.initialized) { show('setup-panel'); return; }
-      const savedToken = sessionStorage.getItem('natatorioSession');
-      if (savedToken) {
-        sessionToken = savedToken;
-        callServer('getCurrentUser', [sessionToken], (result) => enterApp(result.user), () => {
-          sessionStorage.removeItem('natatorioSession');
-          sessionToken = '';
-          show('login-panel');
-        });
-      } else show('login-panel');
-    });
-  }
-  function loadUsers() {
-    callServer('adminListUsers', [sessionToken], (users) => {
-      const container = $('users-list');
-      container.replaceChildren();
-      if (!users.length) { container.textContent = 'Todavía no hay usuarios.'; return; }
-      users.forEach((user) => {
-        const item = document.createElement('div'); item.className = 'user-item';
-        const info = document.createElement('div');
-        const name = document.createElement('strong'); name.textContent = user.name;
-        const meta = document.createElement('p'); meta.className = 'muted small';
-        meta.textContent = user.username + ' · ' + (user.role === 'admin' ? 'Administrador' : 'Operador');
-        info.append(name, meta); item.append(info);
-        const status = document.createElement('span');
-        status.className = user.active ? 'pill active' : 'pill inactive';
-        status.textContent = user.active ? 'Activo' : 'Desactivado'; item.append(status);
-        if (user.role === 'operador') {
-          const toggle = document.createElement('button'); toggle.type = 'button';
-          toggle.className = 'button-secondary compact'; toggle.textContent = user.active ? 'Desactivar' : 'Activar';
-          toggle.addEventListener('click', () => {
-            if (!confirm((user.active ? '¿Desactivar' : 'Activar') + ' al operador ' + user.username + '?')) return;
-            callServer('adminSetOperatorActive', [sessionToken, user.id, !user.active], loadUsers);
-          });
-          item.append(toggle);
-        }
-        container.append(item);
-      });
-    });
-  }
-
-  function loadPeople(query) {
-    $('people-list').textContent = 'Cargando personas…';
-    callServer('searchPeople', [sessionToken, query || ''], (result) => {
-      const container = $('people-list');
-      container.replaceChildren();
-      $('people-count').textContent = result.total === 1 ? '1 persona encontrada' : result.total + ' personas encontradas';
-      if (!result.people.length) {
-        const empty = document.createElement('p'); empty.className = 'muted';
-        empty.textContent = query ? 'No encontramos personas con esa búsqueda.' : 'Todavía no hay personas registradas.';
-        container.append(empty); return;
-      }
-      result.people.forEach((person) => {
-        const item = document.createElement('article'); item.className = 'person-item';
-        const info = document.createElement('div'); info.className = 'person-info';
-        const name = document.createElement('strong');
-        name.textContent = person.apellido + ', ' + person.nombre;
-        const meta = document.createElement('p'); meta.className = 'person-meta';
-        meta.textContent = 'DNI ' + person.dni + (person.telefono ? ' · ' + person.telefono : '') + (person.email ? ' · ' + person.email : '');
-        info.append(name, meta);
-        const status = document.createElement('span'); status.className = 'pill ' + (person.estado === 'activo' ? 'active' : 'inactive');
-        status.textContent = person.estado === 'activo' ? 'Activo' : 'Inactivo';
-        const actions = document.createElement('div'); actions.className = 'person-actions';
-        const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'button-secondary compact';
-        edit.textContent = 'Editar'; edit.addEventListener('click', () => openPersonForm(person.id));
-        actions.append(edit);
-        if (person.estado === 'activo') {
-          const deactivate = document.createElement('button'); deactivate.type = 'button'; deactivate.className = 'button-danger compact';
-          deactivate.textContent = 'Desactivar';
-          deactivate.addEventListener('click', () => {
-            if (!confirm('¿Desactivar a ' + person.nombre + ' ' + person.apellido + '? La persona no se elimina del historial.')) return;
-            callServer('deactivatePerson', [sessionToken, person.id], (response) => {
-              feedback(response.message, false); loadPeople($('people-search').value.trim());
-            });
-          });
-          actions.append(deactivate);
-        }
-        item.append(info, status, actions); container.append(item);
-      });
-    });
-  }
-
-  function openPersonForm(personId) {
-    const panel = $('person-form-panel');
-    const form = $('person-form');
-    form.reset();
-    form.elements.id.value = '';
-    $('person-form-title').textContent = personId ? 'Modificar persona' : 'Nueva persona';
-    $('save-person-button').textContent = personId ? 'Guardar cambios' : 'Guardar persona';
-    panel.classList.remove('hidden');
-    panel.scrollIntoView({ behavior:'smooth', block:'start' });
-    if (!personId) {
-      form.elements.estado.value = 'activo';
-      return;
-    }
-    $('save-person-button').disabled = true;
-    callServer('getPerson', [sessionToken, personId], (result) => {
-      const person = result.person;
-      Object.keys(person).forEach((key) => {
-        if (form.elements[key]) form.elements[key].value = person[key] || '';
-      });
-      $('save-person-button').disabled = false;
-    }, () => { $('save-person-button').disabled = false; });
-  }
-
-  function closePersonForm() {
-    $('person-form').reset();
-    $('person-form-panel').classList.add('hidden');
-    $('save-person-button').disabled = false;
-  }
-
-  $('setup-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = Object.fromEntries(new FormData(form).entries());
-    const button = form.querySelector('button'); button.disabled = true;
-    callServer('createFirstAdmin', [data.setupCode, data.username, data.fullName, data.password], (result) => {
-      form.reset(); button.disabled = false; feedback(result.message, false); show('login-panel');
-    }, () => { button.disabled = false; });
-  });
-
-  $('login-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = Object.fromEntries(new FormData(form).entries());
-    const button = form.querySelector('button'); button.disabled = true;
-    callServer('login', [data.username, data.password], (result) => {
-      sessionToken = result.token; sessionStorage.setItem('natatorioSession', sessionToken);
-      form.reset(); button.disabled = false; enterApp(result.user);
-    }, () => { button.disabled = false; });
-  });
-
-  $('operator-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = Object.fromEntries(new FormData(form).entries());
-    const button = form.querySelector('button'); button.disabled = true;
-    callServer('adminCreateOperator', [sessionToken, data.username, data.fullName, data.password], (result) => {
-      form.reset(); button.disabled = false; feedback(result.message, false); loadUsers();
-    }, () => { button.disabled = false; });
-  });
-
-  $('people-search-form').addEventListener('submit', (event) => {
-    event.preventDefault(); loadPeople($('people-search').value.trim());
-  });
-  $('clear-search-button').addEventListener('click', () => {
-    $('people-search').value = ''; loadPeople('');
-  });
-  $('new-person-button').addEventListener('click', () => openPersonForm(''));
-  $('cancel-person-button').addEventListener('click', closePersonForm);
-  $('cancel-person-button-bottom').addEventListener('click', closePersonForm);
-
-  $('person-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = Object.fromEntries(new FormData(form).entries());
-    const personId = data.id; delete data.id;
-    const button = $('save-person-button'); button.disabled = true;
-    const method = personId ? 'updatePerson' : 'createPerson';
-    const args = personId ? [sessionToken, personId, data] : [sessionToken, data];
-    callServer(method, args, (response) => {
-      button.disabled = false; closePersonForm(); feedback(response.message, false);
-      loadPeople($('people-search').value.trim());
-    }, () => { button.disabled = false; });
-  });
-
-  $('logout-button').addEventListener('click', () => {
-    const oldToken = sessionToken;
-    sessionStorage.removeItem('natatorioSession'); sessionToken = '';
-    callServer('logout', [oldToken], () => { show('login-panel'); feedback('Sesión cerrada.', false); });
-  });
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadInitialState);
-  else loadInitialState();
+(function(){
+ const $=id=>document.getElementById(id);let sessionToken='';
+ function show(id){['loading-panel','setup-panel','login-panel','app-panel'].forEach(key=>$(key).classList.toggle('hidden',key!==id));}
+ function feedback(message,isError){const box=$('feedback');box.textContent=message;box.classList.remove('hidden','error','success');box.classList.add(isError?'error':'success');}
+ function clearFeedback(){$('feedback').classList.add('hidden');}
+ function callServer(method,args,onSuccess,onFailure){const runner=google.script.run.withSuccessHandler(result=>{clearFeedback();if(onSuccess)onSuccess(result);}).withFailureHandler(error=>{if(onFailure)onFailure(error);feedback(error&&error.message?error.message:'Ocurrió un error. Intentá nuevamente.',true);});runner[method].apply(runner,args||[]);}
+ function setView(view){const views=['home','people','admin'];views.forEach(key=>{const panel=$(key==='admin'?'admin-panel':key+'-panel');if(panel)panel.classList.toggle('hidden',key!==view);});document.querySelectorAll('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view));$('sidebar').classList.remove('open');}
+ function enterApp(user){$('user-name').textContent=user.name;$('user-role').textContent=user.role==='admin'?'Administrador':'Operador';$('user-avatar').textContent=(user.name||'U').trim().charAt(0).toUpperCase();show('app-panel');$('admin-nav-button').classList.toggle('hidden',user.role!=='admin');$('admin-panel').classList.toggle('hidden',user.role!=='admin');setView('people');loadPeople('');if(user.role==='admin')loadUsers();}
+ function loadInitialState(){show('loading-panel');callServer('getAuthStatus',[],state=>{if(!state.initialized){show('setup-panel');return;}const savedToken=sessionStorage.getItem('natatorioSession');if(savedToken){sessionToken=savedToken;callServer('getCurrentUser',[sessionToken],result=>enterApp(result.user),()=>{sessionStorage.removeItem('natatorioSession');sessionToken='';show('login-panel');});}else show('login-panel');});}
+ function loadUsers(){callServer('adminListUsers',[sessionToken],users=>{const container=$('users-list');container.replaceChildren();if(!users.length){container.textContent='Todavía no hay usuarios.';return;}users.forEach(user=>{const item=document.createElement('div');item.className='user-item';const info=document.createElement('div');const name=document.createElement('strong');name.textContent=user.name;const meta=document.createElement('p');meta.className='muted small';meta.textContent=user.username+' · '+(user.role==='admin'?'Administrador':'Operador');info.append(name,meta);item.append(info);const status=document.createElement('span');status.className=user.active?'pill active':'pill inactive';status.textContent=user.active?'Activo':'Desactivado';item.append(status);if(user.role==='operador'){const toggle=document.createElement('button');toggle.type='button';toggle.className='button-secondary compact';toggle.textContent=user.active?'Desactivar':'Activar';toggle.addEventListener('click',()=>{if(!confirm((user.active?'¿Desactivar':'Activar')+' al operador '+user.username+'?'))return;callServer('adminSetOperatorActive',[sessionToken,user.id,!user.active],loadUsers);});item.append(toggle);}container.append(item);});});}
+ function loadPeople(query){$('people-list').textContent='Cargando personas…';callServer('searchPeople',[sessionToken,query||''],result=>{const container=$('people-list');container.replaceChildren();$('people-count').textContent=result.total===1?'1 persona encontrada':result.total+' personas encontradas';if(!result.people.length){const empty=document.createElement('p');empty.className='muted';empty.textContent=query?'No encontramos personas con esa búsqueda.':'Todavía no hay personas registradas.';container.append(empty);return;}result.people.forEach(person=>{const item=document.createElement('article');item.className='person-item';const info=document.createElement('div');info.className='person-info';const name=document.createElement('strong');name.textContent=person.apellido+', '+person.nombre;const meta=document.createElement('p');meta.className='person-meta';meta.textContent='DNI '+person.dni+(person.telefono?' · '+person.telefono:'')+(person.email?' · '+person.email:'');info.append(name,meta);const status=document.createElement('span');status.className='pill '+(person.estado==='activo'?'active':'inactive');status.textContent=person.estado==='activo'?'Activo':'Inactivo';const actions=document.createElement('div');actions.className='person-actions';const edit=document.createElement('button');edit.type='button';edit.className='button-secondary compact';edit.textContent='Editar';edit.addEventListener('click',()=>openPersonForm(person.id));actions.append(edit);if(person.estado==='activo'){const deactivate=document.createElement('button');deactivate.type='button';deactivate.className='button-danger compact';deactivate.textContent='Desactivar';deactivate.addEventListener('click',()=>{if(!confirm('¿Desactivar a '+person.nombre+' '+person.apellido+'? La persona no se elimina del historial.'))return;callServer('deactivatePerson',[sessionToken,person.id],response=>{feedback(response.message,false);loadPeople($('people-search').value.trim());});});actions.append(deactivate);}item.append(info,status,actions);container.append(item);});});}
+ function openPersonForm(personId){const panel=$('person-form-panel');const form=$('person-form');form.reset();form.elements.id.value='';$('person-form-title').textContent=personId?'Modificar persona':'Nueva persona';$('save-person-button').textContent=personId?'Guardar cambios':'Guardar persona';panel.classList.remove('hidden');panel.scrollIntoView({behavior:'smooth',block:'start'});if(!personId){form.elements.estado.value='activo';return;}$('save-person-button').disabled=true;callServer('getPerson',[sessionToken,personId],result=>{const person=result.person;Object.keys(person).forEach(key=>{if(form.elements[key])form.elements[key].value=person[key]||'';});$('save-person-button').disabled=false;},()=>$('save-person-button').disabled=false);}
+ function closePersonForm(){$('person-form').reset();$('person-form-panel').classList.add('hidden');$('save-person-button').disabled=false;}
+ $('setup-form').addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const button=form.querySelector('button');button.disabled=true;callServer('createFirstAdmin',[data.setupCode,data.username,data.fullName,data.password],result=>{form.reset();button.disabled=false;feedback(result.message,false);show('login-panel');},()=>button.disabled=false);});
+ $('login-form').addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const button=form.querySelector('button');button.disabled=true;callServer('login',[data.username,data.password],result=>{sessionToken=result.token;sessionStorage.setItem('natatorioSession',sessionToken);form.reset();button.disabled=false;enterApp(result.user);},()=>button.disabled=false);});
+ $('operator-form').addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const button=form.querySelector('button');button.disabled=true;callServer('adminCreateOperator',[sessionToken,data.username,data.fullName,data.password],result=>{form.reset();button.disabled=false;feedback(result.message,false);loadUsers();},()=>button.disabled=false);});
+ $('people-search-form').addEventListener('submit',event=>{event.preventDefault();loadPeople($('people-search').value.trim());});
+ $('clear-search-button').addEventListener('click',()=>{$('people-search').value='';loadPeople('');});
+ $('new-person-button').addEventListener('click',()=>openPersonForm(''));
+ $('cancel-person-button').addEventListener('click',closePersonForm);$('cancel-person-button-bottom').addEventListener('click',closePersonForm);
+ $('person-form').addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const personId=data.id;delete data.id;const button=$('save-person-button');button.disabled=true;const method=personId?'updatePerson':'createPerson';const args=personId?[sessionToken,personId,data]:[sessionToken,data];callServer(method,args,response=>{button.disabled=false;closePersonForm();feedback(response.message,false);loadPeople($('people-search').value.trim());},()=>button.disabled=false);});
+ $('logout-button').addEventListener('click',()=>{const oldToken=sessionToken;sessionStorage.removeItem('natatorioSession');sessionToken='';callServer('logout',[oldToken],()=>{show('login-panel');feedback('Sesión cerrada.',false);});});
+ document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>setView(button.dataset.view)));
+ $('mobile-menu-button').addEventListener('click',()=>$('sidebar').classList.toggle('open'));
+ document.addEventListener('click',event=>{if(window.innerWidth<=680&&!$('sidebar').contains(event.target)&&!$('mobile-menu-button').contains(event.target))$('sidebar').classList.remove('open');});
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',loadInitialState);else loadInitialState();
 })();
 </script>
