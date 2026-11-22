@@ -40,6 +40,49 @@
           <div><p class="eyebrow">SESIÓN ACTIVA</p><strong id="user-name"></strong><p id="user-role" class="muted small"></p></div>
           <button id="logout-button" class="button-secondary" type="button">Cerrar sesión</button>
         </div>
+
+        <section id="people-panel" class="panel">
+          <div class="section-heading">
+            <div><p class="eyebrow">PADRÓN</p><h2>Personas</h2></div>
+            <button id="new-person-button" type="button">+ Nueva persona</button>
+          </div>
+          <p class="muted">Registrá y mantené actualizados los datos de socios, no socios y beneficiarios del natatorio.</p>
+
+          <form id="people-search-form" class="search-row">
+            <input id="people-search" type="search" placeholder="Buscar por DNI, apellido o nombre" aria-label="Buscar personas">
+            <button type="submit" class="button-secondary">Buscar</button>
+            <button id="clear-search-button" type="button" class="button-secondary">Limpiar</button>
+          </form>
+          <p id="people-count" class="muted small" aria-live="polite"></p>
+          <div id="people-list" class="people-list"><p class="muted">Cargando personas…</p></div>
+
+          <div id="person-form-panel" class="person-form-panel hidden">
+            <div class="section-heading">
+              <div><p class="eyebrow">DATOS PERSONALES</p><h3 id="person-form-title">Nueva persona</h3></div>
+              <button id="cancel-person-button" type="button" class="button-secondary">Cancelar</button>
+            </div>
+            <form id="person-form" class="form-grid two-columns">
+              <input type="hidden" name="id">
+              <label>DNI *<input name="dni" inputmode="numeric" maxlength="12" placeholder="Sin puntos" required></label>
+              <label>Nombre *<input name="nombre" maxlength="80" required></label>
+              <label>Apellido *<input name="apellido" maxlength="80" required></label>
+              <label>Fecha de nacimiento<input name="fecha_nacimiento" type="date"></label>
+              <label>Teléfono<input name="telefono" type="tel" maxlength="40"></label>
+              <label>Correo electrónico<input name="email" type="email" maxlength="120"></label>
+              <label class="full-width">Domicilio<input name="domicilio" maxlength="180"></label>
+              <label>Estado
+                <select name="estado"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select>
+              </label>
+              <label class="full-width">Notas<textarea name="notas" rows="3" maxlength="1000"></textarea></label>
+              <div class="form-actions full-width">
+                <button type="submit" id="save-person-button">Guardar persona</button>
+                <button type="button" id="cancel-person-button-bottom" class="button-secondary">Cancelar</button>
+              </div>
+              <p class="hint full-width">* Campos obligatorios. El DNI debe tener 7 u 8 números y no puede estar repetido.</p>
+            </form>
+          </div>
+        </section>
+
         <div id="admin-panel" class="panel hidden">
           <p class="eyebrow">ADMINISTRACIÓN</p><h2>Usuarios</h2>
           <p class="muted">Creá las cuentas de los operadores y habilitalas o deshabilitalas cuando sea necesario.</p>
@@ -50,10 +93,6 @@
             <button type="submit">Crear operador</button>
           </form>
           <div id="users-list" class="users-list"><p class="muted">Cargando usuarios…</p></div>
-        </div>
-        <div id="operator-panel" class="panel hidden">
-          <p class="eyebrow">ACCESO DE OPERADOR</p><h2>Bienvenido</h2>
-          <p class="muted">Tu cuenta está activa. Los módulos de gestión se incorporarán en las próximas etapas.</p>
         </div>
       </section>
       <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
