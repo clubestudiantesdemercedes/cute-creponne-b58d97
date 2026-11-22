@@ -69,7 +69,9 @@ function searchPeople(token, searchText) {
       String(person.apellido || '') + ' ' + String(person.nombre || '')
     );
 
-    if (!query || dni.indexOf(query.replace(/\D/g, '')) !== -1 || fullName.indexOf(query) !== -1) {
+    const queryDni = query.replace(/\D/g, '');
+    const matchesDni = queryDni.length > 0 && dni.indexOf(queryDni) !== -1;
+    if (!query || matchesDni || fullName.indexOf(query) !== -1) {
       results.push(serializePerson_(person));
       if (results.length >= 500) break;
     }
