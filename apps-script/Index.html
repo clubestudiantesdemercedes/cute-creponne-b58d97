@@ -45,8 +45,8 @@
           <div class="sidebar-brand"><img src="https://raw.githubusercontent.com/clubestudiantesdemercedes/cute-creponne-b58d97/apps-script/public/escudo.png" alt="Escudo CAE"><div><strong>Pileta Temporada</strong><span>26/27 · CAE</span></div></div>
           <div class="sidebar-caption">MENÚ PRINCIPAL</div>
           <nav class="main-nav" aria-label="Módulos de la aplicación">
-            <button type="button" class="nav-item" data-view="home"><span class="nav-icon">⌂</span><span>Inicio</span></button>
-            <button type="button" class="nav-item active" data-view="people"><span class="nav-icon">♙</span><span>Personas</span></button>
+            <button type="button" class="nav-item active" data-view="home"><span class="nav-icon">⌂</span><span>Inicio</span></button>
+            <button type="button" class="nav-item" data-view="people"><span class="nav-icon">♙</span><span>Personas</span></button>
             <div class="nav-separator"></div>
             <button type="button" class="nav-item future" disabled><span class="nav-icon">♧</span><span>Socios y familias</span><small>Próximamente</small></button>
             <button type="button" class="nav-item future" disabled><span class="nav-icon">◇</span><span>Convenios</span><small>Próximamente</small></button>
@@ -72,9 +72,25 @@
           </header>
           <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
           <div class="content-area">
-            <section id="home-panel" class="content-view hidden">
-              <div class="welcome-card"><p class="eyebrow">SISTEMA DE GESTIÓN</p><h2>Bienvenido/a</h2><p>Desde el menú lateral podés acceder a los módulos habilitados de la temporada.</p><div class="welcome-shield"><img src="https://raw.githubusercontent.com/clubestudiantesdemercedes/cute-creponne-b58d97/apps-script/public/escudo.png" alt=""></div></div>
-              <div class="module-note"><strong>Tu espacio de trabajo</strong><p>El módulo Personas ya está disponible. Los demás módulos se irán habilitando a medida que completemos su desarrollo.</p><button type="button" class="button-secondary" data-view="people">Ir a Personas</button></div>
+            <section id="home-panel" class="content-view">
+              <div class="dashboard-heading"><div><p class="eyebrow">TEMPORADA 2026 / 2027</p><h2>Resumen de temporada</h2><p class="muted">Estado general del natatorio y actividad del día.</p></div><button id="refresh-dashboard-button" type="button" class="button-secondary compact">↻ Actualizar</button></div>
+              <div id="dashboard-feedback" class="dashboard-feedback hidden" role="status"></div>
+              <div class="dashboard-grid">
+                <article class="dashboard-card"><span class="dashboard-icon blue">♙</span><div><p>Personas habilitadas</p><strong id="stat-people">—</strong></div></article>
+                <article class="dashboard-card"><span class="dashboard-icon green">✓</span><div><p>Ingresos hoy</p><strong id="stat-entries">—</strong></div></article>
+                <article class="dashboard-card"><span class="dashboard-icon amber">▣</span><div><p>Ventas hoy</p><strong id="stat-sales">—</strong></div></article>
+                <article class="dashboard-card"><span class="dashboard-icon red">$</span><div><p>Recaudación hoy</p><strong id="stat-revenue">—</strong></div></article>
+                <article class="dashboard-card"><span class="dashboard-icon navy">♧</span><div><p>Socios habilitados</p><strong id="stat-members">—</strong></div></article>
+                <article class="dashboard-card"><span class="dashboard-icon violet">♙</span><div><p>No socios habilitados</p><strong id="stat-nonmembers">—</strong></div></article>
+              </div>
+              <div class="dashboard-shortcuts">
+                <button type="button" class="shortcut-button" disabled title="Próximamente"><span>＋</span><span><strong>Nueva venta</strong><small>Próximamente</small></span></button>
+                <button type="button" class="shortcut-button" disabled title="Próximamente"><span>⌁</span><span><strong>Control de ingreso</strong><small>Próximamente</small></span></button>
+              </div>
+              <section class="expiry-panel">
+                <div class="expiry-heading"><div><p class="eyebrow">SEGUIMIENTO</p><h3>Permisos que requieren atención</h3></div><span class="muted small">Seleccioná una persona para abrir su perfil</span></div>
+                <div id="expiry-groups" class="expiry-groups"><p class="muted">Cargando vencimientos…</p></div>
+              </section>
             </section>
             <section id="people-panel" class="content-view panel">
               <div class="section-heading"><div><p class="eyebrow">PADRÓN</p><h2>Personas</h2><p class="muted">Registrá y mantené actualizados los datos de socios, no socios y beneficiarios de la pileta.</p></div><button id="new-person-button" type="button">+ Nueva persona</button></div>
@@ -101,6 +117,10 @@
                   <p class="hint full-width">* Campos obligatorios. El DNI debe tener 7 u 8 números y no puede estar repetido.</p>
                 </form>
               </div>
+            </section>
+            <section id="person-detail-panel" class="content-view hidden">
+              <div class="section-heading"><div><p class="eyebrow">PADRÓN · PERFIL</p><h2 id="profile-person-name">Perfil de persona</h2><p class="muted">Datos personales y permisos asociados.</p></div><button id="back-to-people-button" type="button" class="button-secondary">← Volver a Personas</button></div>
+              <div id="person-profile-content"><p class="muted">Cargando perfil…</p></div>
             </section>
             <section id="admin-panel" class="content-view panel hidden">
               <p class="eyebrow">ADMINISTRACIÓN</p><h2>Usuarios</h2>
