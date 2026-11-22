@@ -2,101 +2,115 @@
 <html lang="es">
   <head>
     <base target="_top">
+    <meta name="theme-color" content="#123b70">
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/clubestudiantesdemercedes/cute-creponne-b58d97/apps-script/public/escudo.png">
+    <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/clubestudiantesdemercedes/cute-creponne-b58d97/apps-script/public/escudo.png">
     <?!= include('Styles'); ?>
   </head>
   <body>
     <main class="app-shell">
-      <header class="app-header">
-        <div class="brand-mark" aria-hidden="true">CAE</div>
-        <div>
-          <p class="eyebrow">CLUB ATLÉTICO ESTUDIANTES</p>
-          <h1>Gestión del Natatorio</h1>
-        </div>
-      </header>
-      <section id="loading-panel" class="panel"><p class="muted">Comprobando configuración…</p></section>
-      <section id="setup-panel" class="panel hidden">
-        <p class="eyebrow">CONFIGURACIÓN INICIAL</p>
-        <h2>Crear administrador</h2>
+      <section id="loading-panel" class="auth-screen panel"><p class="muted">Comprobando configuración…</p></section>
+      <section id="setup-panel" class="auth-screen panel hidden">
+        <div class="auth-brand"><img src="https://raw.githubusercontent.com/clubestudiantesdemercedes/cute-creponne-b58d97/apps-script/public/escudo.png" alt="Escudo CAE"><div><p class="eyebrow">CLUB ATLÉTICO ESTUDIANTES</p><h1>Pileta Temporada 26/27 CAE</h1></div></div>
+        <p class="eyebrow">CONFIGURACIÓN INICIAL</p><h2>Crear administrador</h2>
         <p class="muted">Generá primero un código temporal desde el editor de Apps Script. El código se puede utilizar una sola vez y vence a los 30 minutos.</p>
         <form id="setup-form" class="form-grid">
           <label>Código inicial<input name="setupCode" autocomplete="one-time-code" required></label>
           <label>Nombre completo<input name="fullName" autocomplete="name" maxlength="80" required></label>
           <label>Nombre de usuario<input name="username" autocomplete="username" minlength="3" maxlength="30" required></label>
           <label>Contraseña<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
-          <p class="hint">Usá una contraseña única de al menos 8 caracteres. Podés combinar letras y números. No reutilices la contraseña de Gmail.</p>
+          <p class="hint">Usá una contraseña única de al menos 8 caracteres. No reutilices la contraseña de Gmail.</p>
           <button type="submit">Crear administrador</button>
         </form>
       </section>
-      <section id="login-panel" class="panel hidden">
+      <section id="login-panel" class="auth-screen panel hidden">
+        <div class="auth-brand"><img src="https://raw.githubusercontent.com/clubestudiantesdemercedes/cute-creponne-b58d97/apps-script/public/escudo.png" alt="Escudo CAE"><div><p class="eyebrow">CLUB ATLÉTICO ESTUDIANTES</p><h1>Pileta Temporada 26/27 CAE</h1></div></div>
         <p class="eyebrow">ACCESO AL SISTEMA</p><h2>Iniciar sesión</h2>
         <form id="login-form" class="form-grid">
           <label>Usuario<input name="username" autocomplete="username" required></label>
           <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
           <button type="submit">Ingresar</button>
         </form>
+        <p class="auth-footer">Club Atlético Estudiantes · Mercedes, Buenos Aires</p>
       </section>
-      <section id="app-panel" class="hidden">
-        <div class="panel user-bar">
-          <div><p class="eyebrow">SESIÓN ACTIVA</p><strong id="user-name"></strong><p id="user-role" class="muted small"></p></div>
-          <button id="logout-button" class="button-secondary" type="button">Cerrar sesión</button>
-        </div>
 
-        <section id="people-panel" class="panel">
-          <div class="section-heading">
-            <div><p class="eyebrow">PADRÓN</p><h2>Personas</h2></div>
-            <button id="new-person-button" type="button">+ Nueva persona</button>
+      <section id="app-panel" class="app-layout hidden">
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-brand"><img src="https://raw.githubusercontent.com/clubestudiantesdemercedes/cute-creponne-b58d97/apps-script/public/escudo.png" alt="Escudo CAE"><div><strong>Pileta Temporada</strong><span>26/27 · CAE</span></div></div>
+          <div class="sidebar-caption">MENÚ PRINCIPAL</div>
+          <nav class="main-nav" aria-label="Módulos de la aplicación">
+            <button type="button" class="nav-item" data-view="home"><span class="nav-icon">⌂</span><span>Inicio</span></button>
+            <button type="button" class="nav-item active" data-view="people"><span class="nav-icon">♙</span><span>Personas</span></button>
+            <div class="nav-separator"></div>
+            <button type="button" class="nav-item future" disabled><span class="nav-icon">♧</span><span>Socios y familias</span><small>Próximamente</small></button>
+            <button type="button" class="nav-item future" disabled><span class="nav-icon">◇</span><span>Convenios</span><small>Próximamente</small></button>
+            <button type="button" class="nav-item future" disabled><span class="nav-icon">▤</span><span>Planes y tarifas</span><small>Próximamente</small></button>
+            <button type="button" class="nav-item future" disabled><span class="nav-icon">＄</span><span>Ventas</span><small>Próximamente</small></button>
+            <button type="button" class="nav-item future" disabled><span class="nav-icon">▦</span><span>Permisos QR</span><small>Próximamente</small></button>
+            <button type="button" class="nav-item future" disabled><span class="nav-icon">✓</span><span>Control de ingreso</span><small>Próximamente</small></button>
+            <button type="button" class="nav-item future" disabled><span class="nav-icon">▣</span><span>Caja y cierres</span><small>Próximamente</small></button>
+            <button type="button" class="nav-item future" disabled><span class="nav-icon">▥</span><span>Reportes</span><small>Próximamente</small></button>
+          </nav>
+          <div class="sidebar-bottom">
+            <button type="button" class="nav-item admin-nav hidden" id="admin-nav-button" data-view="admin"><span class="nav-icon">⚙</span><span>Configuración</span></button>
+            <div class="sidebar-user"><span class="user-avatar" id="user-avatar">U</span><div><strong id="user-name"></strong><small id="user-role"></small></div></div>
+            <button id="logout-button" class="logout-button" type="button">↪ Cerrar sesión</button>
           </div>
-          <p class="muted">Registrá y mantené actualizados los datos de socios, no socios y beneficiarios del natatorio.</p>
+        </aside>
 
-          <form id="people-search-form" class="search-row">
-            <input id="people-search" type="search" placeholder="Buscar por DNI, apellido o nombre" aria-label="Buscar personas">
-            <button type="submit" class="button-secondary">Buscar</button>
-            <button id="clear-search-button" type="button" class="button-secondary">Limpiar</button>
-          </form>
-          <p id="people-count" class="muted small" aria-live="polite"></p>
-          <div id="people-list" class="people-list"><p class="muted">Cargando personas…</p></div>
-
-          <div id="person-form-panel" class="person-form-panel hidden">
-            <div class="section-heading">
-              <div><p class="eyebrow">DATOS PERSONALES</p><h3 id="person-form-title">Nueva persona</h3></div>
-              <button id="cancel-person-button" type="button" class="button-secondary">Cancelar</button>
-            </div>
-            <form id="person-form" class="form-grid two-columns">
-              <input type="hidden" name="id">
-              <label>DNI *<input name="dni" inputmode="numeric" maxlength="12" placeholder="Sin puntos" required></label>
-              <label>Nombre *<input name="nombre" maxlength="80" required></label>
-              <label>Apellido *<input name="apellido" maxlength="80" required></label>
-              <label>Fecha de nacimiento<input name="fecha_nacimiento" type="date"></label>
-              <label>Teléfono<input name="telefono" type="tel" maxlength="40"></label>
-              <label>Correo electrónico<input name="email" type="email" maxlength="120"></label>
-              <label class="full-width">Domicilio<input name="domicilio" maxlength="180"></label>
-              <label>Estado
-                <select name="estado"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select>
-              </label>
-              <label class="full-width">Notas<textarea name="notas" rows="3" maxlength="1000"></textarea></label>
-              <div class="form-actions full-width">
-                <button type="submit" id="save-person-button">Guardar persona</button>
-                <button type="button" id="cancel-person-button-bottom" class="button-secondary">Cancelar</button>
+        <div class="main-area">
+          <header class="topbar">
+            <button id="mobile-menu-button" class="mobile-menu-button" type="button" aria-label="Abrir menú">☰</button>
+            <div><p class="eyebrow">CLUB ATLÉTICO ESTUDIANTES</p><h1>Pileta Temporada 26/27 CAE</h1></div>
+            <span class="season-chip">TEMPORADA 26/27</span>
+          </header>
+          <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
+          <div class="content-area">
+            <section id="home-panel" class="content-view hidden">
+              <div class="welcome-card"><p class="eyebrow">SISTEMA DE GESTIÓN</p><h2>Bienvenido/a</h2><p>Desde el menú lateral podés acceder a los módulos habilitados de la temporada.</p><div class="welcome-shield"><img src="https://raw.githubusercontent.com/clubestudiantesdemercedes/cute-creponne-b58d97/apps-script/public/escudo.png" alt=""></div></div>
+              <div class="module-note"><strong>Tu espacio de trabajo</strong><p>El módulo Personas ya está disponible. Los demás módulos se irán habilitando a medida que completemos su desarrollo.</p><button type="button" class="button-secondary" data-view="people">Ir a Personas</button></div>
+            </section>
+            <section id="people-panel" class="content-view panel">
+              <div class="section-heading"><div><p class="eyebrow">PADRÓN</p><h2>Personas</h2><p class="muted">Registrá y mantené actualizados los datos de socios, no socios y beneficiarios de la pileta.</p></div><button id="new-person-button" type="button">+ Nueva persona</button></div>
+              <form id="people-search-form" class="search-row">
+                <input id="people-search" type="search" placeholder="Buscar por DNI, apellido o nombre" aria-label="Buscar personas">
+                <button type="submit" class="button-secondary">Buscar</button><button id="clear-search-button" type="button" class="button-secondary">Limpiar</button>
+              </form>
+              <p id="people-count" class="muted small" aria-live="polite"></p>
+              <div id="people-list" class="people-list"><p class="muted">Cargando personas…</p></div>
+              <div id="person-form-panel" class="person-form-panel hidden">
+                <div class="section-heading"><div><p class="eyebrow">DATOS PERSONALES</p><h3 id="person-form-title">Nueva persona</h3></div><button id="cancel-person-button" type="button" class="button-secondary">Cancelar</button></div>
+                <form id="person-form" class="form-grid two-columns">
+                  <input type="hidden" name="id">
+                  <label>DNI *<input name="dni" inputmode="numeric" maxlength="12" placeholder="Sin puntos" required></label>
+                  <label>Nombre *<input name="nombre" maxlength="80" required></label>
+                  <label>Apellido *<input name="apellido" maxlength="80" required></label>
+                  <label>Fecha de nacimiento<input name="fecha_nacimiento" type="date"></label>
+                  <label>Teléfono<input name="telefono" type="tel" maxlength="40"></label>
+                  <label>Correo electrónico<input name="email" type="email" maxlength="120"></label>
+                  <label class="full-width">Domicilio<input name="domicilio" maxlength="180"></label>
+                  <label>Estado<select name="estado"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></label>
+                  <label class="full-width">Notas<textarea name="notas" rows="3" maxlength="1000"></textarea></label>
+                  <div class="form-actions full-width"><button type="submit" id="save-person-button">Guardar persona</button><button type="button" id="cancel-person-button-bottom" class="button-secondary">Cancelar</button></div>
+                  <p class="hint full-width">* Campos obligatorios. El DNI debe tener 7 u 8 números y no puede estar repetido.</p>
+                </form>
               </div>
-              <p class="hint full-width">* Campos obligatorios. El DNI debe tener 7 u 8 números y no puede estar repetido.</p>
-            </form>
+            </section>
+            <section id="admin-panel" class="content-view panel hidden">
+              <p class="eyebrow">ADMINISTRACIÓN</p><h2>Usuarios</h2>
+              <p class="muted">Creá las cuentas de los operadores y habilitalas o deshabilitalas cuando sea necesario.</p>
+              <form id="operator-form" class="form-grid two-columns">
+                <label>Nombre completo<input name="fullName" autocomplete="name" maxlength="80" required></label>
+                <label>Nombre de usuario<input name="username" autocomplete="off" minlength="3" maxlength="30" required></label>
+                <label>Contraseña provisoria<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+                <button type="submit">Crear operador</button>
+              </form>
+              <div id="users-list" class="users-list"><p class="muted">Cargando usuarios…</p></div>
+            </section>
           </div>
-        </section>
-
-        <div id="admin-panel" class="panel hidden">
-          <p class="eyebrow">ADMINISTRACIÓN</p><h2>Usuarios</h2>
-          <p class="muted">Creá las cuentas de los operadores y habilitalas o deshabilitalas cuando sea necesario.</p>
-          <form id="operator-form" class="form-grid two-columns">
-            <label>Nombre completo<input name="fullName" autocomplete="name" maxlength="80" required></label>
-            <label>Nombre de usuario<input name="username" autocomplete="off" minlength="3" maxlength="30" required></label>
-            <label>Contraseña provisoria<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
-            <button type="submit">Crear operador</button>
-          </form>
-          <div id="users-list" class="users-list"><p class="muted">Cargando usuarios…</p></div>
+          <footer>Club Atlético Estudiantes · Mercedes, Buenos Aires</footer>
         </div>
       </section>
-      <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
-      <footer>Club Atlético Estudiantes · Mercedes, Buenos Aires</footer>
     </main>
     <?!= include('Client'); ?>
   </body>
