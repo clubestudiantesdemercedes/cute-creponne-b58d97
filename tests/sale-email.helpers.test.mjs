@@ -56,14 +56,21 @@ test('si nadie tiene email válido, no se crea ningún destinatario', () => {
   )
 })
 
-test('el fallo al crear la cola no se propaga a la operación que ya terminó', async () => {
-  const committedSale = { id: 42, saleNumber: 'V-TEST-001' }
-  const queue = await captureEmailQueueCreation(async () => {
-    throw new Error('Postgres no disponible')
-  })
-  assert.equal(committedSale.id, 42)
-  assert.equal(queue.value, null)
-  assert.match(queue.error ?? '', /Postgres no disponible/)
+test('un fallo al crear la cola ocurre después de confirmar la venta y no cambia su resultado', async () => {
+  let saleCommitted = false
+  const result = await (async () => {
+    const sale = await Promise.resolve({ id: 42, saleNumber: 'V-TEST-001' })
+    saleCommitted = true
+    const queue = await captureEmailQueueCreation(async () => {
+      throw new Error('Postgres no disponible')
+    })
+    return { sale, queue }
+  })()
+
+  assert.equal(saleCommitted, true)
+  assert.deepEqual(result.sale, { id: 42, saleNumber: 'V-TEST-001' })
+  assert.equal(result.queue.value, null)
+  assert.match(result.queue.error ?? '', /Postgres no disponible/)
 })
 
 test('un rechazo del proveedor queda como fallido sin propagar el error', async () => {

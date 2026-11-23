@@ -121,7 +121,7 @@ export async function captureEmailDeliveryAttempt(
 
 /** Captura un fallo al persistir la cola, después de que la venta ya fue confirmada. */
 export async function captureEmailQueueCreation<T>(
-  enqueue: () => Promise<T>,
+  enqueue: () => PromiseLike<T>,
 ): Promise<{ value: T | null; error: string | null }> {
   try {
     return { value: await enqueue(), error: null }
