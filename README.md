@@ -43,6 +43,27 @@ pnpm dev
 - `SESSION_SECRET`: clave usada para firmar la cookie de sesión. **Obligatoria en producción** — en desarrollo existe un valor de respaldo, pero no debe usarse fuera de local.
 - La conexión a la base de datos la provee automáticamente Netlify Database (Netlify DB) al vincular el sitio; no requiere configuración manual en local si se usa `netlify dev`.
 
+### Comprobantes automáticos por correo
+
+Al confirmar una venta, el sistema prepara un envío por cada dirección válida y única de los beneficiarios. Cada destinatario recibe su propio correo con el comprobante completo: todas las personas de la venta, importes, vigencias y los QR reales de todos los permisos, aunque otros integrantes no tengan correo.
+
+La entrega es independiente de la venta: un error al preparar la cola o enviar un correo no revierte la venta ni los permisos. Los estados por destinatario son `pendiente`, `procesando`, `enviado`, `fallido` y `en_revision`. Los pendientes y fallidos se pueden reintentar desde la confirmación o desde el detalle de la venta en Reportes. Un resultado incierto (por ejemplo, pérdida de conexión después de enviar) exige revisar Gmail > Enviados antes de autorizar un reintento, para reducir el riesgo de duplicados.
+
+Configuración requerida en los secretos del entorno de Netlify (solo servidor):
+
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
+- `GMAIL_REFRESH_TOKEN`
+- `GMAIL_SENDER_EMAIL`
+
+El administrador debe configurar Gmail API en Google Cloud, habilitar el alcance OAuth `https://www.googleapis.com/auth/gmail.send` y autorizar acceso sin conexión (`offline access`) para obtener el refresh token. La cuenta autenticada debe coincidir con la dirección remitente o tenerla configurada como alias autorizado. Nunca guardar estas credenciales en GitHub, en variables públicas del frontend ni compartirlas por chat. Si el consentimiento OAuth permanece en modo de prueba, los refresh tokens de una aplicación externa pueden caducar a los siete días; conviene publicar/configurar correctamente la pantalla de consentimiento antes de habilitar el servicio.
+
+Pruebas unitarias de la lógica de destinatarios y clasificación de fallos (Node 22 o superior):
+
+```bash
+pnpm test:emails
+```
+
 ### Base de datos
 
 El esquema vive en `db/schema.ts`. Ante cualquier cambio, generar una migración con:

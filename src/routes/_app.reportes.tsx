@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Download, Search } from 'lucide-react'
 import { listSales, getSaleDetail, voidSale } from '@/server/sales.functions'
+import { processSaleEmailDeliveries } from '@/server/sale-email.functions'
 import { getCurrentUser } from '@/server/auth.functions'
 import { listEntries } from '@/server/entries.functions'
 import { listExpiringPermits } from '@/server/permits.functions'
@@ -66,6 +67,8 @@ function ReportesPage() {
   const [voidReason, setVoidReason] = useState('error_importe')
   const [voidNotes, setVoidNotes] = useState('')
   const [voidBusy, setVoidBusy] = useState(false)
+  const [emailBusySaleId, setEmailBusySaleId] = useState<number | null>(null)
+  const [emailNotice, setEmailNotice] = useState<string | null>(null)
 
   const periodData = { dateFrom, dateTo }
   const periodLabel =
@@ -80,6 +83,7 @@ function ReportesPage() {
       return
     }
     setOpenSaleId(saleId)
+    setEmailNotice(null)
     setSaleDetail(null)
     setDetailLoading(true)
     try {
@@ -89,6 +93,30 @@ function ReportesPage() {
       setSaleDetail(null)
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  async function retrySaleEmails(saleId: number, retryUncertain = false) {
+    if (retryUncertain && !window.confirm(
+      'Este envío tiene resultado incierto. Revisá Gmail > Enviados para comprobar si llegó. Solo reintentá si confirmás que no se envió; podría generarse un duplicado.',
+    )) return
+
+    setEmailBusySaleId(saleId)
+    setEmailNotice(null)
+    try {
+      const deliveries = await processSaleEmailDeliveries({
+        data: { saleId, retryUncertain },
+      })
+      setSaleDetail((current) =>
+        current && current.sale.id === saleId
+          ? { ...current, emailDeliveries: deliveries }
+          : current,
+      )
+      setEmailNotice('Se actualizó el estado de los comprobantes.')
+    } catch (err) {
+      setEmailNotice(err instanceof Error ? err.message : 'No se pudieron procesar los comprobantes.')
+    } finally {
+      setEmailBusySaleId(null)
     }
   }
 
@@ -375,6 +403,41 @@ function ReportesPage() {
                                 {saleDetail.sale.voidedAt ? ' · ' + formatDateTimeAR(saleDetail.sale.voidedAt) : ''}
                               </p>
                             )}
+                            <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-semibold text-slate-600 uppercase">Comprobantes por correo</p>
+                                {emailBusySaleId === s.id && <span className="text-xs text-slate-500">Procesando...</span>}
+                              </div>
+                              {saleDetail.emailDeliveries.length === 0 ? (
+                                <p className="text-sm text-slate-500">No hay destinatarios de correo registrados para esta venta.</p>
+                              ) : (
+                                <ul className="space-y-2">
+                                  {saleDetail.emailDeliveries.map((delivery) => (
+                                    <li key={delivery.id} className="text-sm border-b border-slate-100 pb-2 last:border-0">
+                                      <div className="flex flex-wrap justify-between gap-2">
+                                        <span className="font-medium text-slate-800">{delivery.recipientEmail}</span>
+                                        <span className={delivery.status === 'enviado' ? 'text-xs font-semibold text-emerald-700' : delivery.status === 'fallido' || delivery.status === 'en_revision' ? 'text-xs font-semibold text-amber-700' : 'text-xs font-semibold text-slate-500'}>
+                                          {delivery.status === 'pendiente' ? 'Pendiente' : delivery.status === 'procesando' ? 'En proceso' : delivery.status === 'enviado' ? 'Enviado' : delivery.status === 'fallido' ? 'Fallido' : delivery.status === 'en_revision' ? 'Requiere revisión' : delivery.status}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-slate-500">Intentos: {delivery.attempts}{delivery.sentAt ? ' · Enviado: ' + formatDateTimeAR(delivery.sentAt) : ''}</p>
+                                      {delivery.lastError && <p className="text-xs text-amber-700 mt-1">{delivery.lastError}</p>}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                              {saleDetail.sale.status !== 'anulada' && saleDetail.emailDeliveries.some((delivery) => delivery.status === 'pendiente' || delivery.status === 'fallido') && (
+                                <button type="button" disabled={emailBusySaleId === s.id} onClick={() => retrySaleEmails(s.id)} className="rounded-lg border border-blue-800 px-3 py-2 text-xs font-semibold text-blue-800 disabled:opacity-50">
+                                  Enviar / reintentar pendientes
+                                </button>
+                              )}
+                              {saleDetail.sale.status !== 'anulada' && saleDetail.emailDeliveries.some((delivery) => delivery.status === 'en_revision') && (
+                                <button type="button" disabled={emailBusySaleId === s.id} onClick={() => retrySaleEmails(s.id, true)} className="rounded-lg border border-amber-600 px-3 py-2 text-xs font-semibold text-amber-800 disabled:opacity-50">
+                                  Reintentar después de revisar Gmail
+                                </button>
+                              )}
+                              {emailNotice && <p className="text-xs text-amber-700">{emailNotice}</p>}
+                            </div>
                             <p className="text-xs font-semibold text-slate-600 uppercase">
                               Personas en esta venta
                             </p>

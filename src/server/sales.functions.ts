@@ -5,6 +5,7 @@ import { db } from './db.server'
 import {
   sales,
   saleItems,
+  saleEmailDeliveries,
   payments,
   permits,
   plans,
@@ -24,6 +25,10 @@ import {
 } from '@/lib/permit'
 import { todayISO } from '@/lib/format'
 import { resolvePrice } from './prices.db.server'
+import {
+  captureEmailQueueCreation,
+  getSaleEmailRecipients,
+} from './sale-email.helpers.server'
 
 const SaleItemInput = z.object({
   personId: z.number(),
@@ -369,6 +374,32 @@ export const createSale = createServerFn({ method: 'POST' })
       peopleRows.map((person) => [person.id, person]),
     )
 
+    // La venta y los permisos ya fueron confirmados en la transacción anterior.
+    // La preparación de correos se ejecuta después y nunca puede revertir la venta.
+    const recipients = getSaleEmailRecipients(peopleRows)
+    let emailDeliveries: Array<typeof saleEmailDeliveries.$inferSelect> = []
+    let emailQueueError: string | null = null
+
+    if (recipients.length > 0) {
+      const queueResult = await captureEmailQueueCreation(() =>
+        db
+          .insert(saleEmailDeliveries)
+          .values(recipients.map((recipient) => ({
+            saleId: sale.id,
+            recipientEmail: recipient.recipientEmail,
+            normalizedEmail: recipient.normalizedEmail,
+            recipientName: recipient.recipientName,
+          })))
+          .returning(),
+      )
+
+      emailDeliveries = queueResult.value ?? []
+      if (queueResult.error) {
+        emailQueueError = 'La venta y sus permisos quedaron registrados, pero no se pudo preparar la cola de correos. Avisá al administrador para revisar el registro.'
+        console.error('[sale-email] No se pudo preparar la cola:', queueResult.error)
+      }
+    }
+
     // ------------------------------------------------------------
     // RESPUESTA
     // ------------------------------------------------------------
@@ -385,6 +416,10 @@ export const createSale = createServerFn({ method: 'POST' })
       permits: insertedPermits,
 
       entries: createdEntries,
+
+      emailDeliveries,
+
+      emailQueueError,
     }
   })
 
@@ -489,6 +524,7 @@ export const getSaleDetail = createServerFn({ method: 'GET' })
       .where(eq(saleItems.saleId, sale.id))
 
     const paymentRows = await db.select().from(payments).where(eq(payments.saleId, sale.id))
+    const emailDeliveries = await db.select().from(saleEmailDeliveries).where(eq(saleEmailDeliveries.saleId, sale.id)).orderBy(saleEmailDeliveries.id)
     const [creator] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, sale.createdByUserId))
     const [voider] = sale.voidedByUserId
       ? await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, sale.voidedByUserId))
@@ -498,6 +534,7 @@ export const getSaleDetail = createServerFn({ method: 'GET' })
       sale,
       items,
       payments: paymentRows,
+      emailDeliveries,
       createdByName: creator?.fullName ?? 'Usuario',
       voidedByName: voider?.fullName ?? null,
     }

@@ -27,6 +27,7 @@ import { upsertMember } from '@/server/members.functions'
 import { formatARS, formatDateAR, todayISO } from '@/lib/format'
 import { listPlans, listAllPrices } from '@/server/plans.functions'
 import { createSale } from '@/server/sales.functions'
+import { processSaleEmailDeliveries } from '@/server/sale-email.functions'
 import { QrCode } from '@/components/QrCode'
 import { computePermitDates, dayAfterISO } from '@/lib/permit'
 
@@ -100,6 +101,8 @@ type Step =
       sale: any
       items: any[]
       permits: any[]
+      emailDeliveries: any[]
+      emailQueueError: string | null
     }
 
 function VentaRapida() {
@@ -399,12 +402,16 @@ function VentaRapida() {
             sale,
             items,
             permitsResult,
+            emailDeliveries,
+            emailQueueError,
           ) =>
             setStep({
               name: 'confirmada',
               sale,
               items,
               permits: permitsResult,
+              emailDeliveries,
+              emailQueueError,
             })
           }
         />
@@ -415,6 +422,8 @@ function VentaRapida() {
           sale={step.sale}
           items={step.items}
           permits={step.permits}
+          initialEmailDeliveries={step.emailDeliveries}
+          emailQueueError={step.emailQueueError}
           onNueva={() => {
             setCart([])
             setStep({ name: 'elegir_tipo' })
@@ -1936,6 +1945,8 @@ function Carrito({
     sale: any,
     items: any[],
     permits: any[],
+    emailDeliveries: any[],
+    emailQueueError: string | null,
   ) => void
 }) {
   const [method, setMethod] =
@@ -1969,6 +1980,8 @@ function Carrito({
         result.sale,
         result.items,
         result.permits,
+        result.emailDeliveries ?? [],
+        result.emailQueueError ?? null,
       )
     } catch (e) {
       setError(
@@ -2180,15 +2193,112 @@ function VentaConfirmada({
   sale,
   items,
   permits,
+  initialEmailDeliveries,
+  emailQueueError,
   onNueva,
 }: {
   sale: any
   items: any[]
   permits: any[]
+  initialEmailDeliveries: any[]
+  emailQueueError: string | null
   onNueva: () => void
 }) {
+  const [emailDeliveries, setEmailDeliveries] = useState<any[]>(initialEmailDeliveries)
+  const [emailBusy, setEmailBusy] = useState(false)
+  const [emailNotice, setEmailNotice] = useState<string | null>(emailQueueError)
+
+  useEffect(() => {
+    if (!initialEmailDeliveries.some((delivery) => delivery.status === 'pendiente')) return
+
+    let active = true
+    setEmailBusy(true)
+    processSaleEmailDeliveries({ data: { saleId: sale.id } })
+      .then((rows) => {
+        if (active) setEmailDeliveries(rows)
+      })
+      .catch((error) => {
+        if (active) setEmailNotice(error instanceof Error ? error.message : 'No se pudieron enviar los comprobantes.')
+      })
+      .finally(() => {
+        if (active) setEmailBusy(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [sale.id])
+
+  async function retryEmailDeliveries(retryUncertain = false) {
+    if (retryUncertain && !window.confirm(
+      'Este envío quedó con resultado incierto. Primero revisá Gmail > Enviados buscando el comprobante de esta venta. Si confirmás que no se envió, aceptá para reintentar. Podría generarse un duplicado si Gmail sí lo recibió.',
+    )) return
+
+    setEmailBusy(true)
+    setEmailNotice(null)
+    try {
+      const rows = await processSaleEmailDeliveries({
+        data: { saleId: sale.id, retryUncertain },
+      })
+      setEmailDeliveries(rows)
+    } catch (error) {
+      setEmailNotice(error instanceof Error ? error.message : 'No se pudieron actualizar los envíos.')
+    } finally {
+      setEmailBusy(false)
+    }
+  }
+
+  const statusLabels: Record<string, string> = {
+    pendiente: 'Pendiente',
+    procesando: 'En proceso',
+    enviado: 'Enviado',
+    fallido: 'Fallido',
+    en_revision: 'Requiere revisión',
+  }
+  const retryable = emailDeliveries.some((delivery) =>
+    delivery.status === 'pendiente' || delivery.status === 'fallido',
+  )
+  const uncertain = emailDeliveries.some((delivery) => delivery.status === 'en_revision')
+
   return (
     <div className="space-y-4">
+      <Card>
+        <div className="flex items-center gap-2 font-semibold text-slate-800 mb-2">
+          <span>Comprobantes por correo</span>
+          {emailBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+        </div>
+        {emailQueueError ? (
+          <p className="text-sm text-amber-700">{emailQueueError}</p>
+        ) : emailDeliveries.length === 0 ? (
+          <p className="text-sm text-slate-500">No se encontraron direcciones de correo válidas para los beneficiarios. La venta quedó registrada normalmente y no se envió ningún correo.</p>
+        ) : (
+          <div className="space-y-2">
+            {emailDeliveries.map((delivery) => (
+              <div key={delivery.id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 border-b border-slate-100 pb-2 last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{delivery.recipientEmail}</p>
+                  <p className="text-xs text-slate-500">
+                    {statusLabels[delivery.status] ?? delivery.status} · Intentos: {delivery.attempts}
+                    {delivery.sentAt ? ' · Enviado: ' + formatDateTimeAR(delivery.sentAt) : ''}
+                  </p>
+                  {delivery.lastError && <p className="text-xs text-amber-700 mt-1">{delivery.lastError}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {emailNotice && <p className="text-sm text-amber-700 mt-2">{emailNotice}</p>}
+        {retryable && (
+          <button type="button" disabled={emailBusy} onClick={() => retryEmailDeliveries(false)} className="mt-3 rounded-lg border border-blue-800 px-3 py-2 text-sm font-semibold text-blue-800 disabled:opacity-50">
+            Reintentar pendientes o fallidos
+          </button>
+        )}
+        {uncertain && (
+          <button type="button" disabled={emailBusy} onClick={() => retryEmailDeliveries(true)} className="mt-3 ml-2 rounded-lg border border-amber-600 px-3 py-2 text-sm font-semibold text-amber-800 disabled:opacity-50">
+            Reintentar tras revisar Gmail
+          </button>
+        )}
+      </Card>
       <Card>
         <div className="flex items-center gap-2 text-emerald-700 font-bold text-lg mb-1">
           <CheckCircle2 className="w-6 h-6" />

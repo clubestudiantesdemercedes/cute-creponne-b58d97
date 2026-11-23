@@ -172,6 +172,28 @@ export const saleItems = pgTable('sale_items', {
   unitPrice: integer('unit_price').notNull(),
 })
 
+export const saleEmailDeliveries = pgTable(
+  'sale_email_deliveries',
+  {
+    id: serial().primaryKey(),
+    saleId: integer('sale_id').notNull().references(() => sales.id),
+    recipientEmail: text('recipient_email').notNull(),
+    normalizedEmail: text('normalized_email').notNull(),
+    recipientName: text('recipient_name').notNull(),
+    status: text('status').notNull().default('pendiente'), // pendiente | procesando | enviado | fallido | en_revision
+    attempts: integer('attempts').notNull().default(0),
+    lastAttemptAt: timestamp('last_attempt_at'),
+    sentAt: timestamp('sent_at'),
+    providerMessageId: text('provider_message_id'),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('sale_email_delivery_sale_recipient_idx').on(t.saleId, t.normalizedEmail),
+  ],
+)
+
 // ---------- PAYMENTS ----------
 
 export const payments = pgTable('payments', {
