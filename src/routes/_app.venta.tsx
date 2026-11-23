@@ -24,7 +24,7 @@ import {
 } from '@/server/people.functions'
 
 import { upsertMember } from '@/server/members.functions'
-import { formatARS, formatDateAR, todayISO } from '@/lib/format'
+import { formatARS, formatDateAR, formatDateTimeAR, todayISO } from '@/lib/format'
 import { listPlans, listAllPrices } from '@/server/plans.functions'
 import { createSale } from '@/server/sales.functions'
 import { processSaleEmailDeliveries } from '@/server/sale-email.functions'
