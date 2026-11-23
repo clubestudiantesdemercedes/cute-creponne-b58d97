@@ -103,3 +103,11 @@ test('los errores almacenados ocultan posibles tokens bearer', async () => {
   assert.equal(result.status, 'fallido')
   assert.doesNotMatch(result.lastError ?? '', /abc\.def\.ghi/)
 })
+
+test('los mensajes de error de texto se conservan y se limpian', async () => {
+  const result = await captureEmailDeliveryAttempt(async () => {
+    throw 'Gmail devolvió un error de autorización'
+  })
+  assert.equal(result.status, 'fallido')
+  assert.match(result.lastError ?? '', /autorización/)
+})

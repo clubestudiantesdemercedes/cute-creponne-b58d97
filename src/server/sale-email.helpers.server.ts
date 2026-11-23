@@ -75,9 +75,11 @@ export function getSaleEmailRecipients(
 }
 
 export function safeDeliveryErrorMessage(error: unknown): string {
-  const message = error instanceof Error
-    ? error.message
-    : 'Error desconocido al enviar el correo.'
+  const message = typeof error === 'string'
+    ? error
+    : error instanceof Error
+      ? error.message
+      : 'Error desconocido al enviar el correo.'
 
   return message
     .replace(/[\r\n\t]+/g, ' ')
