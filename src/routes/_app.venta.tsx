@@ -2269,7 +2269,9 @@ function VentaConfirmada({
         </div>
 
         <p className="text-sm text-slate-500">N° de registro: {sale.saleNumber} — {sale.totalAmount === 0 ? 'SIN CARGO' : `Total: ${formatARS(sale.totalAmount)}`}</p>
-      </Card>      <Card>
+      </Card>
+
+      <Card>
         <div className="flex items-center gap-2 font-semibold text-slate-800 mb-2">
           <span>Comprobantes por correo</span>
           {emailBusy && <Loader2 className="w-4 h-4 animate-spin" />}
