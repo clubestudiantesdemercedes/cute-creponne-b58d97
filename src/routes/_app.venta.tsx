@@ -2263,6 +2263,13 @@ function VentaConfirmada({
   return (
     <div className="space-y-4">
       <Card>
+        <div className="flex items-center gap-2 text-emerald-700 font-bold text-lg mb-1">
+          <CheckCircle2 className="w-6 h-6" />
+          {sale.totalAmount === 0 ? 'Registro confirmado' : 'Venta confirmada'}
+        </div>
+
+        <p className="text-sm text-slate-500">N° de registro: {sale.saleNumber} — {sale.totalAmount === 0 ? 'SIN CARGO' : `Total: ${formatARS(sale.totalAmount)}`}</p>
+      </Card>      <Card>
         <div className="flex items-center gap-2 font-semibold text-slate-800 mb-2">
           <span>Comprobantes por correo</span>
           {emailBusy && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -2299,14 +2306,7 @@ function VentaConfirmada({
           </button>
         )}
       </Card>
-      <Card>
-        <div className="flex items-center gap-2 text-emerald-700 font-bold text-lg mb-1">
-          <CheckCircle2 className="w-6 h-6" />
-          {sale.totalAmount === 0 ? 'Registro confirmado' : 'Venta confirmada'}
-        </div>
 
-        <p className="text-sm text-slate-500">N° de registro: {sale.saleNumber} — {sale.totalAmount === 0 ? 'SIN CARGO' : `Total: ${formatARS(sale.totalAmount)}`}</p>
-      </Card>
 
       {items.map((item) => {
         const permit = permits.find(
