@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
-import { and, eq, ne, or } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { db } from './db.server'
 import {
   users,
