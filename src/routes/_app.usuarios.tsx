@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { Plus, UserCog, Pencil, X } from 'lucide-react'
-import { listUsers, createUser, updateUser, deactivateOtherUsers } from '@/server/users.functions'
+import { Plus, UserCog, Pencil, X, Trash2 } from 'lucide-react'
+import { listUsers, createUser, updateUser, deleteUser, deactivateOtherUsers } from '@/server/users.functions'
 import { ROLE_LABELS } from '@/lib/roles'
 
 export const Route = createFileRoute('/_app/usuarios')({
@@ -84,6 +84,23 @@ function UsuariosPage() {
     }
   }
 
+  async function removeUser(user: UserRow) {
+    const confirmed = window.confirm(
+      'Vas a eliminar definitivamente el usuario @' + user.username + '. Solo se podrá completar si no tiene operaciones ni auditorías asociadas. Esta acción no se puede deshacer. ¿Querés continuar?',
+    )
+    if (!confirmed) return
+
+    setError('')
+    setSaving(true)
+    try {
+      await deleteUser({ data: { id: user.id } })
+      window.location.reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar el usuario.')
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -134,14 +151,20 @@ function UsuariosPage() {
       <div className="bg-white rounded-xl shadow-sm divide-y divide-slate-100">
         {users.map((u) => (
           <div key={u.id} className="p-4 flex items-center justify-between gap-3">
-            <div className="min-w-0"><p className="font-medium">{u.fullName}</p><p className="text-xs text-slate-500">@{u.username} — {ROLE_LABELS[u.role]}</p></div>
+            <div className="min-w-0"><p className="font-medium">{u.fullName}</p><p className="text-xs text-slate-500">@{u.username} — {ROLE_LABELS[u.role] ?? u.role}</p></div>
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={() => startEdit(u)} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700"><Pencil className="w-3.5 h-3.5" /> Editar</button>
               <button onClick={() => toggleActive(u)} className={`text-xs font-bold px-3 py-1.5 rounded-full ${u.active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{u.active ? 'Activo' : 'Inactivo'}</button>
+              {u.username !== 'jsiri' && (
+                <button onClick={() => removeUser(u)} disabled={saving} aria-label={`Eliminar usuario ${u.username}`} title="Eliminar usuario" className="inline-flex items-center justify-center p-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         ))}
       </div>
+      <p className="text-xs text-slate-500">La eliminación definitiva solo está permitida para cuentas sin operaciones ni auditorías asociadas. Las cuentas con historial deben conservarse inactivas para no perder la trazabilidad.</p>
     </div>
   )
 }
