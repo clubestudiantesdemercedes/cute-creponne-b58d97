@@ -1,9 +1,16 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
-import { eq, ne } from 'drizzle-orm'
+import { and, eq, ne, or } from 'drizzle-orm'
 import { db } from './db.server'
-import { users, auditLogs } from '../../db/schema'
+import {
+  users,
+  auditLogs,
+  sales,
+  payments,
+  entries,
+  cashClosures,
+} from '../../db/schema'
 import { requireUser } from './auth.server'
 
 export const listUsers = createServerFn({ method: 'GET' }).handler(async () => {
@@ -110,11 +117,55 @@ export const updateUser = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+/**
+ * Elimina definitivamente una cuenta únicamente si no tiene operaciones ni
+ * auditorías asociadas. Las cuentas con historial deben conservarse inactivas.
+ */
+export const deleteUser = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.number().int().positive() }))
+  .handler(async ({ data }) => {
+    const requester = await requireUser()
+    if (requester.role !== 'admin') throw new Error('Solo un administrador puede eliminar usuarios.')
+    if (requester.userId === data.id) throw new Error('No podés eliminar la cuenta con la que estás conectado.')
+
+    return db.transaction(async (tx) => {
+      const [target] = await tx.select().from(users).where(eq(users.id, data.id))
+      if (!target) throw new Error('No se encontró el usuario que querés eliminar.')
+      if (target.username === 'jsiri') throw new Error('La cuenta jsiri es el administrador general y no se puede eliminar.')
+
+      if (target.role === 'admin' && target.active) {
+        const activeAdmins = await tx.select({ id: users.id }).from(users).where(and(eq(users.role, 'admin'), eq(users.active, true)))
+        if (activeAdmins.length <= 1) {
+          throw new Error('No podés eliminar al único administrador general activo.')
+        }
+      }
+
+      const [saleCreated] = await tx.select({ id: sales.id }).from(sales).where(eq(sales.createdByUserId, data.id)).limit(1)
+      const [saleVoided] = await tx.select({ id: sales.id }).from(sales).where(eq(sales.voidedByUserId, data.id)).limit(1)
+      const [payment] = await tx.select({ id: payments.id }).from(payments).where(eq(payments.createdByUserId, data.id)).limit(1)
+      const [entry] = await tx.select({ id: entries.id }).from(entries).where(eq(entries.checkedInByUserId, data.id)).limit(1)
+      const [closure] = await tx.select({ id: cashClosures.id }).from(cashClosures).where(eq(cashClosures.closedByUserId, data.id)).limit(1)
+      const [audit] = await tx.select({ id: auditLogs.id }).from(auditLogs).where(eq(auditLogs.userId, data.id)).limit(1)
+
+      if (saleCreated || saleVoided || payment || entry || closure || audit) {
+        throw new Error('Este usuario tiene ventas, cobros, ingresos, cierres o auditorías asociados. Para conservar el historial, no se puede eliminar; podés dejarlo inactivo.')
+      }
+
+      await tx.delete(users).where(eq(users.id, data.id))
+      await tx.insert(auditLogs).values({
+        userId: requester.userId,
+        action: 'eliminar_usuario',
+        entityType: 'user',
+        entityId: String(data.id),
+        details: { username: target.username, fullName: target.fullName, role: target.role },
+      })
+
+      return { ok: true, username: target.username }
+    })
+  })
 
 /**
  * Deshabilita las demás cuentas conservando jsiri como administrador general.
- * No elimina filas porque ventas, ingresos y auditorías históricas pueden
- * referenciar a esos usuarios.
  */
 export const deactivateOtherUsers = createServerFn({ method: 'POST' }).handler(async () => {
   const requester = await requireUser()
